@@ -1,4 +1,4 @@
-# PureQuant
+PureQuant
 
 ------
 
@@ -47,11 +47,11 @@ ProjectName
 
 + 微信
 
-  
+  <img src="https://github.com/Gary-Hertel/pictures/raw/master/微信图片_20200819173133.jpg" style="zoom:25%;" />
 
 + 支付宝
 
-  ![](https:/github.com/Gary-Hertel/pictures/raw/master/支付宝.jpg)
+  <img src="https://github.com/Gary-Hertel/pictures/raw/master/支付宝.jpg" style="zoom:25%;" />
 
   
 
