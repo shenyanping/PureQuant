@@ -13,7 +13,7 @@ from purequant.indicators import INDICATORS
 import pandas as pd
 from purequant.config import config
 
-class Strorage:
+class Storage:
     """K线等各种数据的存储与读取"""
 
     def __init__(self):
@@ -483,4 +483,4 @@ class Strorage:
         db = client[database]
         db.command("dropDatabase")
 
-storage = Strorage()
+storage = Storage()
