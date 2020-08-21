@@ -47,7 +47,7 @@ ProjectName
 
 + 微信
 
-  ![image](https://github.com/Gary-Hertel/PureQuant/raw/master/screenshots/1.jpg)
+  ![](https://github.com/Gary-Hertel/PureQuant/raw/master/Screenshots/1.jpg)
 
 + 支付宝
 
