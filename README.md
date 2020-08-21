@@ -47,7 +47,7 @@ ProjectName
 
 + 微信
 
-  [https://github.com/eternalranger/pictures/blob/master/%E5%BE%AE%E4%BF%A1%E5%9B%BE%E7%89%87_20200819173133.jpg]: 
+  ![https://github.com/Gary-Hertel/PureQuant/raw/master/screenshots/1.jpg]()
 
 + 支付宝
 
