@@ -43,5 +43,6 @@ setup(
     ],
     package_data={
         "purequant/example/double_moving_average_strategy": ["*.json"],
+        "purequant/example/plot_signal": ["*.json"],
     },
 )
