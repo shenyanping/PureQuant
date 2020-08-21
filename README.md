@@ -14,9 +14,6 @@ PureQuant是一套使用Python语言开发的数字货币程序化交易框架�
 
   数据存储
   
-+ **依赖python三方包**
-
-  pip install purequant 时会自动安装依赖三方包，请确保提前安装了setuptools，可以 pip install setuptools
 
 ## 安装
 

@@ -8,8 +8,14 @@ except ImportError:
 
 setup(
     name="purequant",
-    version="0.1.0",
-    packages=find_packages(),
+    version="0.1",
+    packages=[
+        "purequant",
+        "purequant/exchange/huobi",
+        "purequant/exchange/okex",
+        "purequant/example/double_moving_average_strategy",
+        "purequant/example/plot_signal"
+    ],
     platforms="any",
     description="数字货币程序化交易开源框架，助力中小投资者快速搭建程序化交易系统。",
     url="https://github.com/Gary-Hertel/PureQuant",
