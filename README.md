@@ -47,11 +47,11 @@ ProjectName
 
 + 微信
 
-  ![](https://github.com/Gary-Hertel/PureQuant/raw/master/Screenshots/1.jpg)
+  
 
 + 支付宝
 
-  [https://github.com/eternalranger/pictures/blob/master/%E6%94%AF%E4%BB%98%E5%AE%9D.jpg]: 
+  ![](https:/github.com/Gary-Hertel/pictures/raw/master/支付宝.jpg)
 
   
 
