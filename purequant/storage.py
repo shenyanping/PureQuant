@@ -483,7 +483,7 @@ class Storage:
         db = client[database]
         db.command("dropDatabase")
 
-    def mqsql_save_strategy_run_info(self, database, data_sheet, timestamp, action, price, amount, turnover, hold_price, hold_direction, hold_amount, profit, total_profit, total_asset):
+    def mysql_save_strategy_run_info(self, database, data_sheet, timestamp, action, price, amount, turnover, hold_price, hold_direction, hold_amount, profit, total_profit, total_asset):
         """
         保存策略运行过程中的数据信息到mysql数据库中，可以是回测的信息或者是实盘运行过程中的信息
         :param database: 数据库名称

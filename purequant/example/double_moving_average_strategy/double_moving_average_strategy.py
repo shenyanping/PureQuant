@@ -32,7 +32,7 @@ class Strategy:
         self.database = "回测"    # 回测时必须为"回测"
         self.datasheet = self.instrument_id.split("-")[0].lower() + "_" + time_frame
         if config.first_run == "true":
-            storage.mqsql_save_strategy_run_info(self.database, self.datasheet, get_localtime(),
+            storage.mysql_save_strategy_run_info(self.database, self.datasheet, get_localtime(),
                                             "none", 0, 0, 0, 0, "none", 0, 0, 0, start_asset)
         # 读取数据库中保存的总资金数据
         self.total_asset = storage.read_mysql_datas(0, self.database, self.datasheet, "总资金", ">")[-1][-1]
@@ -66,7 +66,7 @@ class Strategy:
                         amount = round(self.total_asset / price / self.contract_value)   # 数量=总资金/价格/合约面值
                         info = self.exchange.buy(price, amount)
                         push(info)
-                        storage.mqsql_save_strategy_run_info(self.database, self.datasheet, timestamp, "买入开多",
+                        storage.mysql_save_strategy_run_info(self.database, self.datasheet, timestamp, "买入开多",
                                                         price, amount, amount*price*self.contract_value, price,
                                                         "long", amount, 0, self.total_profit, self.total_asset)     # 将信息保存至数据库
                     if self.position.direction() == 'short':    # 若当前持空头，先平空再开多
@@ -79,7 +79,7 @@ class Strategy:
                         open_long_amount = round(self.total_asset / self.market.close(-1, kline=kline) / self.contract_value)
                         info = self.exchange.BUY(cover_short_price, cover_short_amount, open_long_price, open_long_amount)
                         push("此次盈亏：{} 当前总资金：{}".format(profit, self.total_asset) + info)
-                        storage.mqsql_save_strategy_run_info(self.database, self.datasheet, timestamp, "平空开多",
+                        storage.mysql_save_strategy_run_info(self.database, self.datasheet, timestamp, "平空开多",
                                                         open_long_price, open_long_amount, open_long_amount * open_long_price * self.contract_value,
                                                         open_long_price, "long", open_long_amount, profit, self.total_profit, self.total_asset)
                 if cross_below:     # 死叉时
@@ -88,7 +88,7 @@ class Strategy:
                         amount = round(self.total_asset / price / self.contract_value)
                         info = self.exchange.sellshort(price, amount)
                         push(info)
-                        storage.mqsql_save_strategy_run_info(self.database, self.datasheet, timestamp, "卖出开空",
+                        storage.mysql_save_strategy_run_info(self.database, self.datasheet, timestamp, "卖出开空",
                                                     price, amount, amount * price * self.contract_value, price,
                                                     "short", amount, 0, self.total_profit, self.total_asset)
                     if self.position.direction() == 'long':
@@ -104,7 +104,7 @@ class Strategy:
                                                   open_short_price,
                                                   open_short_amount)
                         push("此次盈亏：{} 当前总资金：{}".format(profit, self.total_asset) + info)
-                        storage.mqsql_save_strategy_run_info(self.database, self.datasheet, timestamp, "平多开空",
+                        storage.mysql_save_strategy_run_info(self.database, self.datasheet, timestamp, "平多开空",
                                                         open_short_price, open_short_amount,
                                                         open_short_price * open_short_amount * self.contract_value,
                                                         open_short_price, "short", open_short_amount, profit, self.total_profit,
@@ -119,7 +119,7 @@ class Strategy:
                         amount = self.position.amount()
                         info = self.exchange.sell(price, amount)
                         push("此次盈亏：{} 当前总资金：{}".format(profit, self.total_asset) + info)
-                        storage.mqsql_save_strategy_run_info(self.database, self.datasheet, timestamp,
+                        storage.mysql_save_strategy_run_info(self.database, self.datasheet, timestamp,
                                                         "卖出止损", price, amount,
                                                         amount * price * self.contract_value,
                                                         0, "none", 0, profit, self.total_profit,
@@ -134,7 +134,7 @@ class Strategy:
                         amount = self.position.amount()
                         info = self.exchange.buytocover(price, amount)
                         push("此次盈亏：{} 当前总资金：{}".format(profit, self.total_asset) + info)
-                        storage.mqsql_save_strategy_run_info(self.database, self.datasheet, timestamp,
+                        storage.mysql_save_strategy_run_info(self.database, self.datasheet, timestamp,
                                                         "买入止损", price, amount,
                                                         amount * price * self.contract_value,
                                                         0, "none", 0, profit, self.total_profit,
