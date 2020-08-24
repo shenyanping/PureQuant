@@ -93,6 +93,8 @@ class Config:
         self.mysql_authorization = configures["MYSQL"]["authorization"]
         self.mysql_user_name = configures["MYSQL"]["user_name"]
         self.mysql_password = configures["MYSQL"]["password"]
+        # BACKTEST
+        self.backtest = configures["MODE"]["backtest"]
 
     def update_config(self, config_file, config_content):
         """

@@ -16,6 +16,7 @@ from purequant.indicators import INDICATORS
 from purequant.market import MARKET
 
 class SIGNALIZE:
+    """实盘时根据从交易所获取的k线数据绘制k线图、成交量图及指标"""
 
     def __init__(self, platform, symbol, time_frame):
 
@@ -296,3 +297,44 @@ class SIGNALIZE:
         # 仅副图均加载
         fplt.plot(self.__df['time'], self.__indicators.VOLUME(), color=color, ax=self.__ax3,
                   legend='VOLUME')
+
+
+def plot_kline(kline):
+    """
+    回测结束时绘制k线图
+    :param kline: 回测时传入指定的k线数据
+    :return:
+    """
+    kline = kline
+    # kline.reverse()
+
+    # format it in pandas
+    try:  # dataframe有7列的情况
+        df = pd.DataFrame(kline,
+                                 columns=['time', 'open', 'high', 'low', 'close', 'volume', 'currency_volume'])
+        df = df.astype({'time': 'datetime64[ns]', 'open': 'float64', 'close': 'float64',
+                                      'high': 'float64', 'low': 'float64', 'volume': 'float64',
+                                      'currency_volume': 'float64'})
+    except:  # dataframe只有6列的情况，如okex的现货k线数据
+        df = pd.DataFrame(kline,
+                                 columns=['time', 'open', 'high', 'low', 'close', 'volume'])
+        df = df.astype({'time': 'datetime64[ns]', 'open': 'float64', 'close': 'float64',
+                                      'high': 'float64', 'low': 'float64', 'volume': 'float64'})
+
+    # create three plot 创建三层图纸，第一层画k线，第二层画成交量，第三层画一些适宜于副图显示的指标
+    fplt.foreground = '#FFFFFF'  # 前景色
+    fplt.background = '#333333'  # 背景色
+    fplt.odd_plot_background = '#333333'  # 第二层图纸的背景色
+    fplt.cross_hair_color = "#FFFFFF"  # 准星的颜色
+    ax, ax2 = fplt.create_plot("KLINE", rows=2)
+
+    # plot candle sticks
+    candles = df[['time', 'open', 'close', 'high', 'low']]
+    fplt.candlestick_ochl(candles, ax=ax)
+
+    # overlay volume on the plot
+    volumes = df[['time', 'open', 'close', 'volume']]
+    fplt.volume_ocv(volumes, ax=ax2)
+    fplt.add_legend("VOLUME", ax2)  # 增加"VOLUME"图例
+    fplt.show()
+

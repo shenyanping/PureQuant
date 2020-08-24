@@ -1,28 +1,31 @@
 {
     "STATUS": {
-        "first_run": "false"
+        "first_run": "true"
+    },
+    "MODE": {
+        "backtest": "enabled"
     },
     "ASSISTANT": {
         "automatic_cancellation": "true",
-        "reissue_order": "0.0%",
+        "reissue_order": "0.1%",
         "price_cancellation": "true",
-        "amplitude": "0.1%",
+        "amplitude": "0.5%",
         "time_cancellation": "true",
         "seconds": 10
     },
     "EXCHANGE": {
-        "access_key": "your access_key",
-        "secret_key": "you secret_key",
+        "access_key": "your access key",
+        "secret_key": "your secret key",
         "passphrase": "your passphrase"
-    },
-    "MONGODB": {
-        "authorization": "disabled",
-        "user_name": "",
-        "password": ""
     },
     "MYSQL": {
         "authorization": "disabled",
-        "user_name": "",
+        "user_name": "root",
+        "password": ""
+    },
+    "MONGODB": {
+        "authorization": "disabled",
+        "user_name": "root",
         "password": ""
     },
     "PUSH": {
@@ -37,7 +40,7 @@
     },
     "LOG": {
         "level": "debug",
-        "handler": "file"
+        "handler": "stream"
     },
     "MARKETS_SERVER": {
         "platform": {
@@ -65,18 +68,18 @@
         }
     },
     "DINGTALK": {
-        "ding_talk_api": "https://oapi.dingtalk.com/robot/send?access_token=d3a36879423366908a7db8823f6af823cccca302e51a1c9d74b453"
+        "ding_talk_api": "https://oapi.dingtalk.com/robot/send?access_token=d3a36823cccca302e51a1c9e83dbd79d74b453"
     },
     "TWILIO": {
-        "accountSID" : "AC97a11fcc5edc858e559cd3906140f",
-        "authToken" : "3616b6ced8e250fe1e232ca4aa559",
+        "accountSID" : "AC97a11fcd39061ad140f",
+        "authToken" : "3616b6ced82fa4aa559",
         "myNumber" : "+8615312345678",
-        "twilio_Number" : "+12058947890"
+        "twilio_Number" : "+12058958974"
     },
     "SENDMAIL": {
         "from_addr" : "123456789@qq.com",
-        "password" : "xxeqkwqwcjgj",
-        "to_addr" : "abc@icloud.com",
+        "password" : "xxeqsfqwcjgj",
+        "to_addr" : "iloveyou@icloud.com",
         "smtp_server" : "smtp.qq.com",
         "port": 587
     }

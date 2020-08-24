@@ -483,4 +483,80 @@ class Storage:
         db = client[database]
         db.command("dropDatabase")
 
+    def mqsql_save_strategy_run_info(self, database, data_sheet, timestamp, action, price, amount, turnover, hold_price, hold_direction, hold_amount, profit, total_profit, total_asset):
+        """
+        保存策略运行过程中的数据信息到mysql数据库中，可以是回测的信息或者是实盘运行过程中的信息
+        :param database: 数据库名称
+        :param data_sheet: 数据表名称
+        :param timestamp: 时间戳
+        :param action: 交易类型，如"买入开多"等等
+        :param price: 下单价格
+        :param amount: 下单数量
+        :param turnover: 成交金额
+        :param hold_price: 当前持仓价格
+        :param hold_direction: 当前持仓方向
+        :param hold_amount: 当前持仓数量
+        :param profit: 此次交易盈亏
+        :param total_profit: 策略运行总盈亏
+        :param total_asset: 当前总资金
+        :return:
+        """
+        # 检查数据库是否存在，如不存在则创建
+        user = config.mysql_user_name if config.mysql_authorization == "enabled" else 'root'
+        password = config.mysql_password if config.mysql_authorization == "enabled" else 'root'
+        conn1 = mysql.connector.connect(user=user, password=password)
+        cursor1 = conn1.cursor()
+        cursor1.execute("SHOW DATABASES")
+        list1 = []
+        for item in cursor1:
+            for x in item:
+                list1.append(x)
+        if database in list1:
+            pass
+        else:
+            cursor1.execute("CREATE DATABASE {}".format(database))
+        conn1.commit()
+        cursor1.close()
+        conn1.close()
+        # 检查数据表是否存在，如不存在则创建
+        conn2 = mysql.connector.connect(user=user, password=password, database=database)
+        cursor2 = conn2.cursor()
+        cursor2.execute("SHOW TABLES")
+        list2 = []
+        for item in cursor2:
+            for x in item:
+                list2.append(x)
+        if data_sheet in list2:
+            pass
+        else:  # 如果数据表不存在就创建
+            cursor2.execute(
+                "CREATE TABLE {} (时间 TEXT, 类型 TEXT, 价格 FLOAT, 数量 FLOAT, 成交金额 FLOAT, 当前持仓价格 FLOAT, 当前持仓方向 TEXT, 当前持仓数量 FLOAT, 此次盈亏 FLOAT, 总盈亏 FLOAT, 总资金 FLOAT)".format(data_sheet))
+        # 插入新数据
+        cursor2.execute(
+            'insert into {} (时间, 类型, 价格, 数量, 成交金额, 当前持仓价格, 当前持仓方向, 当前持仓数量, 此次盈亏, 总盈亏, 总资金) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'.format(data_sheet),
+            [timestamp, action, price, amount, turnover, hold_price, hold_direction, hold_amount, profit, total_profit, total_asset])
+        conn2.commit()
+        cursor2.close()
+        conn2.close()
+
+
+    def read_purequant_server_datas(self, datasheet):  # 获取数据库满足条件的数据
+        """
+        查询PureQuant服务器数据库中满足条件的数据
+        :param datasheet:
+        :return:
+        """
+        # 连接数据库
+        user = 'root'
+        password = '123456'
+        conn = mysql.connector.connect(host="62.234.75.102", user=user, password=password, database="kline", buffered=True)
+        cursor = conn.cursor()
+        # 打开游标
+        cursor.execute("SELECT * FROM {} WHERE {} {} '{}'".format(datasheet, "open", ">", 0))
+        LogData = cursor.fetchall()  # 取出了数据库数据
+        # 关闭游标和连接
+        cursor.close()
+        conn.close()
+        return LogData
+
 storage = Storage()
