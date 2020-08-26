@@ -142,7 +142,7 @@ class Strategy:
                                                         self.total_asset)
                         self.counter += 1
         except Exception as e:
-            self.logger(e)   # 输出异常日志信息，当前路径下需建立logger文件夹
+            self.logger.debug(e)   # 输出异常日志信息，当前路径下需建立logger文件夹
 
 if __name__ == "__main__":
 
