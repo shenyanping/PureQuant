@@ -1,14 +1,16 @@
 from purequant.signalize import SIGNALIZE
 from purequant.trade import OKEXFUTURES, OKEXSPOT, OKEXSWAP, HUOBISPOT, HUOBIFUTURES, HUOBISWAP
 from purequant.const import *
+from purequant.config import config
 
+config.loads('config.json')
 symbol = "ETC-USDT-201225"
 time_frame = "1d"
 okex = OKEXFUTURES("", "", "", symbol)
 # huobi = HUOBIFUTURES("", "", symbol)    # 火币需填入api
 
 signalize = SIGNALIZE(okex, symbol, time_frame)     # 实例化
-signalize.plot_last(color=WHITE)
+signalize.plot_last(color=GOLDEN)
 signalize.plot_ma(60, color=PINK)
 signalize.plot_ma(90, color=SKYBLUE)
 # signalize.plot_atr(14)

@@ -12,6 +12,7 @@ from purequant.indicators import INDICATORS
 from purequant.trade import OKEXFUTURES
 from purequant.position import POSITION
 from purequant.market import MARKET
+from purequant.logger import LOGGER
 from purequant.push import push
 from purequant.storage import storage
 from purequant.time import get_localtime, utctime_str_to_ts, ts_to_datetime_str
@@ -28,6 +29,7 @@ class Strategy:
         self.position = POSITION(self.exchange, self.instrument_id, self.time_frame)  # 初始化potion
         self.market = MARKET(self.exchange, self.instrument_id, self.time_frame)  # 初始化market
         self.indicators = INDICATORS(self.exchange, self.instrument_id, self.time_frame)    # 初始化indicators
+        self.logger = LOGGER('config.json')     # 初始化logger
         # 在第一次运行程序时，将初始资金数据保存至数据库中
         self.database = "回测"    # 回测时必须为"回测"
         self.datasheet = self.instrument_id.split("-")[0].lower() + "_" + time_frame
@@ -36,7 +38,6 @@ class Strategy:
                                             "none", 0, 0, 0, 0, "none", 0, 0, 0, start_asset)
         # 读取数据库中保存的总资金数据
         self.total_asset = storage.read_mysql_datas(0, self.database, self.datasheet, "总资金", ">")[-1][-1]
-        self.overprice_range = config.reissue_order     # 超价下单幅度
         self.counter = 0  # 计数器
         self.fast_length = fast_length  # 短周期均线长度
         self.slow_length = slow_length  # 长周期均线长度
@@ -62,7 +63,7 @@ class Strategy:
                 # 按照策略信号开平仓
                 if cross_over:     # 金叉时
                     if self.position.amount() == 0:     # 若当前无持仓，则买入开多并推送下单结果
-                        price = self.market.open(-1, kline=kline) * (1 + self.overprice_range)  # 下单价格=此根k线收盘价*超价幅度
+                        price = self.market.open(-1, kline=kline)  # 下单价格=此根k线收盘价
                         amount = round(self.total_asset / price / self.contract_value)   # 数量=总资金/价格/合约面值
                         info = self.exchange.buy(price, amount)
                         push(info)
@@ -70,13 +71,13 @@ class Strategy:
                                                         price, amount, amount*price*self.contract_value, price,
                                                         "long", amount, 0, self.total_profit, self.total_asset)     # 将信息保存至数据库
                     if self.position.direction() == 'short':    # 若当前持空头，先平空再开多
-                        profit = self.position.covershort_profit(last=self.market.close(-1, kline=kline))  # 在平空前先计算逻辑盈亏，当前最新成交价为收盘价close
+                        profit = self.position.covershort_profit(last=self.market.open(-1, kline=kline))  # 在平空前先计算逻辑盈亏，当前最新成交价为开盘价
                         self.total_profit += profit
                         self.total_asset += profit  # 计算此次盈亏后的总资金
-                        cover_short_price = self.market.close(-1, kline=kline) * (1 - self.overprice_range)
+                        cover_short_price = self.market.open(-1, kline=kline)
                         cover_short_amount = self.position.amount()
-                        open_long_price = self.market.close(-1, kline=kline) * (1 + self.overprice_range)
-                        open_long_amount = round(self.total_asset / self.market.close(-1, kline=kline) / self.contract_value)
+                        open_long_price = self.market.open(-1, kline=kline)
+                        open_long_amount = round(self.total_asset / self.market.open(-1, kline=kline) / self.contract_value)
                         info = self.exchange.BUY(cover_short_price, cover_short_amount, open_long_price, open_long_amount)
                         push("此次盈亏：{} 当前总资金：{}".format(profit, self.total_asset) + info)
                         storage.mysql_save_strategy_run_info(self.database, self.datasheet, timestamp, "平空开多",
@@ -84,7 +85,7 @@ class Strategy:
                                                         open_long_price, "long", open_long_amount, profit, self.total_profit, self.total_asset)
                 if cross_below:     # 死叉时
                     if self.position.amount() == 0:
-                        price = self.market.close(-1, kline=kline) * (1 - self.overprice_range)
+                        price = self.market.open(-1, kline=kline)
                         amount = round(self.total_asset / price / self.contract_value)
                         info = self.exchange.sellshort(price, amount)
                         push(info)
@@ -92,13 +93,13 @@ class Strategy:
                                                     price, amount, amount * price * self.contract_value, price,
                                                     "short", amount, 0, self.total_profit, self.total_asset)
                     if self.position.direction() == 'long':
-                        profit = self.position.coverlong_profit(last=self.market.close(-1, kline=kline))     # 在平多前先计算逻辑盈亏，当前最新成交价为收盘价close
+                        profit = self.position.coverlong_profit(last=self.market.open(-1, kline=kline))     # 在平多前先计算逻辑盈亏，当前最新成交价为开盘价
                         self.total_profit += profit
                         self.total_asset += profit
-                        cover_long_price = self.market.close(-1, kline=kline) * (1 + self.overprice_range)
+                        cover_long_price = self.market.open(-1, kline=kline)
                         cover_long_amount = self.position.amount()
-                        open_short_price = self.market.close(-1, kline=kline) * (1 - self.overprice_range)
-                        open_short_amount = round(self.total_asset / self.market.close(-1, kline=kline) / self.contract_value)
+                        open_short_price = self.market.open(-1, kline=kline)
+                        open_short_amount = round(self.total_asset / self.market.open(-1, kline=kline) / self.contract_value)
                         info = self.exchange.SELL(cover_long_price,
                                                   cover_long_amount,
                                                   open_short_price,
@@ -115,7 +116,7 @@ class Strategy:
                         profit = self.position.coverlong_profit(last=self.position.price() * self.long_stop)    # 在平多前先计算逻辑盈亏，当前最新成交价为止损价
                         self.total_profit += profit
                         self.total_asset += profit
-                        price = self.position.price() * self.long_stop * (1 - self.overprice_range)
+                        price = self.position.price() * self.long_stop
                         amount = self.position.amount()
                         info = self.exchange.sell(price, amount)
                         push("此次盈亏：{} 当前总资金：{}".format(profit, self.total_asset) + info)
@@ -130,7 +131,7 @@ class Strategy:
                         profit = self.position.covershort_profit(last=self.position.price() * self.short_stop)
                         self.total_profit += profit
                         self.total_asset += profit
-                        price = self.position.price() * self.short_stop * (1 + self.overprice_range)
+                        price = self.position.price() * self.short_stop
                         amount = self.position.amount()
                         info = self.exchange.buytocover(price, amount)
                         push("此次盈亏：{} 当前总资金：{}".format(profit, self.total_asset) + info)
@@ -141,7 +142,7 @@ class Strategy:
                                                         self.total_asset)
                         self.counter += 1
         except Exception as e:
-            print(e)   # 输出异常日志信息
+            self.logger(e)   # 输出异常日志信息，当前路径下需建立logger文件夹
 
 if __name__ == "__main__":
 
