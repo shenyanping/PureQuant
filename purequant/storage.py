@@ -141,14 +141,14 @@ class Storage:
         cursor2.close()
         conn2.close()
 
-    def kline_save(self, platform, database, data_sheet, instrument_id, time_frame):
+    def kline_save(self, database, data_sheet, platform, instrument_id, time_frame):
         """
         从交易所获取k线数据，并将其存储至数据库中
         :param platform: 交易所
         :param database: 数据库名称
         :param data_sheet: 数据表名称
         :param instrument_id: 要获取k线数据的交易对名称或合约ID
-        :param time_frame: k线周期，如'60'为一分钟，'86400'为一天，字符串格式
+        :param time_frame: k线周期，如'1m'为一分钟，'1d'为一天，字符串格式
         :return: "获取的历史数据已存储至mysql数据库！"
         """
         result = platform.get_kline(time_frame)
@@ -157,7 +157,7 @@ class Storage:
             self.__save_kline_func(database, data_sheet, data[0], data[1], data[2], data[3], data[4], data[5], data[6])
         print("获取的历史数据已存储至mysql数据库！")
 
-    def kline_storage(self, platform, database, data_sheet, instrument_id, time_frame):
+    def kline_storage(self, database, data_sheet, platform, instrument_id, time_frame):
         """
         实时获取上一根k线存储至数据库中。
         :param database: 数据库名称
@@ -256,7 +256,7 @@ class Storage:
             file.close()
         return content
 
-    def mongodb_save(self, data, database, collection):
+    def mongodb_save(self, database, collection, data):
         """保存数据至mongodb"""
         client = pymongo.MongoClient(host='localhost', port=27017)
         if config.mongodb_authorization == "enabled":   # 如果启用了授权验证
@@ -547,8 +547,8 @@ class Storage:
         :return:
         """
         # 连接数据库
-        user = 'root'
-        password = '123456'
+        user = 'kline'
+        password = 'kline'
         conn = mysql.connector.connect(host="62.234.75.102", user=user, password=password, database="kline", buffered=True)
         cursor = conn.cursor()
         # 打开游标
