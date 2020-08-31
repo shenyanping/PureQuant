@@ -13,6 +13,7 @@ setup(
         "purequant",
         "purequant/exchange/huobi",
         "purequant/exchange/okex",
+        "purequant/exchange/binance",
         "purequant/example/double_moving_average_strategy",
         "purequant/example/plot_signal"
     ],
