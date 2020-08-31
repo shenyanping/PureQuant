@@ -43,12 +43,12 @@ class Strategy:
                                             "none", 0, 0, 0, 0, "none", 0, 0, 0, start_asset)
         # 读取数据库中保存的总资金数据
         self.total_asset = storage.read_mysql_datas(0, self.database, self.datasheet, "总资金", ">")[-1][-1]
+        self.total_profit = storage.read_mysql_datas(0, self.database, self.datasheet, "总资金", ">")[-1][-2]  # 策略总盈亏
         self.counter = 0  # 计数器
         self.fast_length = fast_length  # 短周期均线长度
         self.slow_length = slow_length  # 长周期均线长度
         self.long_stop = long_stop   # 多单止损幅度
         self.short_stop = short_stop    # 空单止损幅度
-        self.total_profit = 0
         self.contract_value = self.market.contract_value()  # 合约面值，每次获取需发起网络请求，故于此处声明变量，优化性能
         # 声明持仓方向、数量与价格变量，每次开平仓后手动重新赋值
         self.hold_direction = "none"
