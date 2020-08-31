@@ -32,3 +32,5 @@ class DataBankError(CunstomException):
 class MatchError(CunstomException):
     defaul_msg = "策略持仓与账户持仓比较失败！"
 
+class SendOrderError(CunstomException):
+    defaul_msg = "下单失败！"

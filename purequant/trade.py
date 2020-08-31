@@ -13,6 +13,9 @@ from purequant.exchange.okex import futures_api as okexfutures
 from purequant.exchange.okex import swap_api as okexswap
 from purequant.exchange.huobi import huobi_futures as huobifutures
 from purequant.exchange.huobi import huobi_swap as huobiswap
+from purequant.exchange.binance import binance_spot
+from purequant.exchange.binance import binance_futures
+from purequant.exchange.binance import binance_swap
 from purequant.time import ts_to_utc_str
 from purequant.exchange.huobi import huobi_spot as huobispot
 from purequant.config import config
@@ -1984,3 +1987,935 @@ class HUOBISPOT:
         receipt = self.__huobi_spot.get_ticker(self.__instrument_id)
         last = receipt['tick']['close']
         return {"last": last}
+
+
+class BINANCESPOT:
+    """币安现货rest api"""
+
+    def __init__(self, access_key, secret_key, symbol):
+        """
+        初始化
+        :param access_key: api_key
+        :param secret_key: secret_key
+        :param symbol: 币对，例如‘BTC-USDT'
+        """
+        self.__access_key = access_key
+        self.__secret_key = secret_key
+        self.__instrument_id = symbol.split("-")[0] + symbol.split("-")[1]
+        self.__binance_spot = binance_spot
+        self.__binance_spot.set(self.__access_key, self.__secret_key)   # 设置api
+
+    def buy(self, price, size, order_type=None, timeInForce=None):
+        """
+        币安现货买入
+        :param price: 价格
+        :param size: 数量
+        :param order_type:默认限价单，LIMIT 限价单
+                                    MARKET 市价单
+                                    STOP_LOSS 止损单
+                                    STOP_LOSS_LIMIT 限价止损单
+                                    TAKE_PROFIT 止盈单
+                                    TAKE_PROFIT_LIMIT 限价止盈单
+                                    LIMIT_MAKER 限价卖单
+        :param timeInForce:有效方式，定义了订单多久能够变成失效。
+                            GTC	成交为止订单会一直有效，直到被成交或者取消。
+                            IOC	无法立即成交的部分就撤销，订单在失效前会尽量多的成交。
+                            FOK	无法全部立即成交就撤销，如果无法全部成交，订单会失效。
+        :return:
+        """
+        if config.backtest != "enabled":  # 实盘模式
+            order_type = "LIMIT" if order_type is None else order_type  # 默认限价单
+            timeInForce = "GTC" if timeInForce is None else timeInForce  # 默认成交为止，订单会一直有效，直到被成交或者取消。
+            result = self.__binance_spot.order(symbol=self.__instrument_id,
+                                               side="BUY",
+                                               quantity=size,
+                                               price=price,
+                                               orderType=order_type,
+                                               timeInForce=timeInForce)
+            if result["msg"] is not None:   # 如果下单失败就抛出异常，提示错误信息。
+                raise SendOrderError(result["msg"])
+            order_info = self.get_order_info(order_id=result['orderId'])   # 下单后查询一次订单状态
+            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            # 如果订单状态不是"完全成交"或者"失败"
+            if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
+                if order_info["订单状态"] == "等待成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                            size - state["已成交数量"])
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                        size - state["已成交数量"])
+            if config.automatic_cancellation == "true":
+                # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
+                self.revoke_order(order_id=result['orderId'])
+                state = self.get_order_info(order_id=result['orderId'])
+                return '【交易提醒】' + "下单结果：{}".format(state)
+            else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+        else:  # 回测模式
+            return "回测模拟下单成功！"
+
+    def sell(self, price, size, order_type=None, timeInForce=None):
+        if config.backtest != "enabled":  # 实盘模式
+            order_type = "LIMIT" if order_type is None else order_type  # 默认限价单
+            timeInForce = "GTC" if timeInForce is None else timeInForce  # 默认成交为止，订单会一直有效，直到被成交或者取消。
+            result = self.__binance_spot.order(symbol=self.__instrument_id,
+                                               side="SELL",
+                                               quantity=size,
+                                               price=price,
+                                               orderType=order_type,
+                                               timeInForce=timeInForce)
+            if result["msg"] is not None:   # 如果下单失败就抛出异常，提示错误信息。
+                raise SendOrderError(result["msg"])
+            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            # 如果订单状态不是"完全成交"或者"失败"
+            if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
+                if order_info["订单状态"] == "等待成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sell(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sell(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                            size - state["已成交数量"])
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.sell(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.sell(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                        size - state["已成交数量"])
+            if config.automatic_cancellation == "true":
+                # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
+                self.revoke_order(order_id=result['orderId'])
+                state = self.get_order_info(order_id=result['orderId'])
+                return '【交易提醒】' + "下单结果：{}".format(state)
+            else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+        else:  # 回测模式
+            return "回测模拟下单成功！"
+
+    def get_order_info(self, order_id):
+        """币安现货查询订单信息"""
+        result = self.__binance_spot.orderStatus(self.__instrument_id, orderId=order_id)
+        instrument_id = self.__instrument_id
+        action = None
+        if result['side'] == 'BUY':
+            action = "买入开多"
+        elif result['side'] == 'SELL':
+            action = "卖出平多"
+
+        if result['status'] == "FILLED":
+            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": result['price'],
+                    "数量": result['executedQty'],
+                    "成交金额": result["cummulativeQuoteQty"]}
+            return dict
+        elif result['status'] == "REJECTED":
+            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "失败"}
+            return dict
+        elif result['status'] == "CANCELED":
+            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            return dict
+        elif result['status'] == "NEW":
+            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "等待成交"}
+            return dict
+        elif result['status'] == "PARTIALLY_FILLED":
+            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": result['price'],
+                    "已成交数量": result['executedQty'], "成交金额": result["cummulativeQuoteQty"]}
+            return dict
+        elif result['status'] == "EXPIRED":
+            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "订单被交易引擎取消"}
+            return dict
+        elif result['status'] == "PENDING_CANCEL	":
+            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "撤单中"}
+            return dict
+
+    def revoke_order(self, order_id):
+        """币安现货撤销订单"""
+        receipt = self.__binance_spot.cancel(self.__instrument_id, orderId=order_id)
+        if receipt['status'] == "CANCELED":
+            return '【交易提醒】撤单成功'
+        else:
+            return '【交易提醒】撤单失败'
+
+    def get_ticker(self):
+        """币安现货查询最新价"""
+        response = self.__binance_spot.get_ticker(self.__instrument_id)
+        receipt = {'symbol': response['symbol'], 'last': response['price']}
+        return receipt
+
+    def get_kline(self, time_frame):
+        """
+        币安现货获取k线数据
+        :param time_frame: k线周期。1m， 3m， 5m， 15m， 30m， 1h， 2h， 4h， 6h， 8h， 12h， 1d， 3d， 1w， 1M
+        :return:返回一个列表，包含开盘时间戳、开盘价、最高价、最低价、收盘价、成交量。
+        """
+        receipt = self.__binance_spot.klines(self.__instrument_id, time_frame)  # 获取历史k线数据
+        last_kine = self.__binance_spot.get_last_kline(self.__instrument_id)    # 获取24hr 价格变动情况
+        for item in receipt:
+            item[0] = ts_to_utc_str(int(item[0])/1000)
+            item.pop(6)
+            item.pop(7)
+            item.pop(8)
+            item.pop(6)
+            item.pop(7)
+            item.pop(6)
+        receipt.append(last_kine)
+        receipt.reverse()
+        return receipt
+
+    def get_position(self):
+        """
+        币安现货获取持仓信息
+        :return: 返回一个字典，{'direction': direction, 'amount': amount, 'price': price}
+        """
+        receipt = self.__binance_spot.balances()[self.__instrument_id]
+        direction = 'long'
+        amount = receipt['free']
+        price = None
+        result = {'direction': direction, 'amount': amount, 'price': price}
+        return result
+
+
+class BINANCEFUTURES:
+    """币安交割合约rest api"""
+
+    def __init__(self, access_key, secret_key, instrument_id):
+        """
+        初始化
+        :param access_key: api_key
+        :param secret_key: secret_key
+        :param symbol: 合约ID,例如'BTC-USD-201225'
+        """
+        self.__access_key = access_key
+        self.__secret_key = secret_key
+        self.__instrument_id = "{}{}_{}".format(instrument_id.split("-")[0], instrument_id.split("-")[1], instrument_id.split("-")[2])
+        self.__binance_futures = binance_futures
+        self.__binance_futures.set(self.__access_key, self.__secret_key)   # 设置api
+
+    def buy(self, price, size, order_type=None, timeInForce=None):
+        if config.backtest != "enabled":  # 实盘模式
+            order_type = "LIMIT" if order_type is None else order_type  # 默认限价单
+            timeInForce = "GTC" if timeInForce is None else timeInForce  # 默认成交为止，订单会一直有效，直到被成交或者取消。
+            result = self.__binance_futures.order(symbol=self.__instrument_id,
+                                               side="BUY",
+                                               quantity=size,
+                                               price=price,
+                                               orderType=order_type,
+                                               timeInForce=timeInForce)
+            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+                raise SendOrderError(result["msg"])
+            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            # 如果订单状态不是"完全成交"或者"失败"
+            if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
+                if order_info["订单状态"] == "等待成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                            size - state["已成交数量"])
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                        size - state["已成交数量"])
+            if config.automatic_cancellation == "true":
+                # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
+                self.revoke_order(order_id=result['orderId'])
+                state = self.get_order_info(order_id=result['orderId'])
+                return '【交易提醒】' + "下单结果：{}".format(state)
+            else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+        else:  # 回测模式
+            return "回测模拟下单成功！"
+
+    def sell(self, price, size, order_type=None, timeInForce=None):
+        if config.backtest != "enabled":  # 实盘模式
+            order_type = "LIMIT" if order_type is None else order_type  # 默认限价单
+            timeInForce = "GTC" if timeInForce is None else timeInForce  # 默认成交为止，订单会一直有效，直到被成交或者取消。
+            result = self.__binance_futures.order(symbol=self.__instrument_id,
+                                               side="SELL",
+                                               positionSide="LONG",
+                                               quantity=size,
+                                               price=price,
+                                               orderType=order_type,
+                                               timeInForce=timeInForce)
+            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+                raise SendOrderError(result["msg"])
+            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            # 如果订单状态不是"完全成交"或者"失败"
+            if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
+                if order_info["订单状态"] == "等待成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                            size - state["已成交数量"])
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                        size - state["已成交数量"])
+            if config.automatic_cancellation == "true":
+                # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
+                self.revoke_order(order_id=result['orderId'])
+                state = self.get_order_info(order_id=result['orderId'])
+                return '【交易提醒】' + "下单结果：{}".format(state)
+            else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+        else:  # 回测模式
+            return "回测模拟下单成功！"
+
+    def buytocover(self, price, size, order_type=None, timeInForce=None):
+        if config.backtest != "enabled":  # 实盘模式
+            order_type = "LIMIT" if order_type is None else order_type  # 默认限价单
+            timeInForce = "GTC" if timeInForce is None else timeInForce  # 默认成交为止，订单会一直有效，直到被成交或者取消。
+            result = self.__binance_futures.order(symbol=self.__instrument_id,
+                                               side="BUY",
+                                               positionSide="SHORT",
+                                               quantity=size,
+                                               price=price,
+                                               orderType=order_type,
+                                               timeInForce=timeInForce)
+            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+                raise SendOrderError(result["msg"])
+            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            # 如果订单状态不是"完全成交"或者"失败"
+            if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
+                if order_info["订单状态"] == "等待成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                            size - state["已成交数量"])
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                        size - state["已成交数量"])
+            if config.automatic_cancellation == "true":
+                # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
+                self.revoke_order(order_id=result['orderId'])
+                state = self.get_order_info(order_id=result['orderId'])
+                return '【交易提醒】' + "下单结果：{}".format(state)
+            else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+        else:  # 回测模式
+            return "回测模拟下单成功！"
+
+    def sellshort(self, price, size, order_type=None, timeInForce=None):
+        if config.backtest != "enabled":  # 实盘模式
+            order_type = "LIMIT" if order_type is None else order_type  # 默认限价单
+            timeInForce = "GTC" if timeInForce is None else timeInForce  # 默认成交为止，订单会一直有效，直到被成交或者取消。
+            result = self.__binance_futures.order(symbol=self.__instrument_id,
+                                               side="SELL",
+                                               positionSide="BOTH",
+                                               quantity=size,
+                                               price=price,
+                                               orderType=order_type,
+                                               timeInForce=timeInForce)
+            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+                raise SendOrderError(result["msg"])
+            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            # 如果订单状态不是"完全成交"或者"失败"
+            if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
+                if order_info["订单状态"] == "等待成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                            size - state["已成交数量"])
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                        size - state["已成交数量"])
+            if config.automatic_cancellation == "true":
+                # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
+                self.revoke_order(order_id=result['orderId'])
+                state = self.get_order_info(order_id=result['orderId'])
+                return '【交易提醒】' + "下单结果：{}".format(state)
+            else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+        else:  # 回测模式
+            return "回测模拟下单成功！"
+
+    def BUY(self, cover_short_price, cover_short_size, open_long_price, open_long_size, order_type=None):
+        if config.backtest != "enabled":    # 实盘模式
+            order_type = order_type or 0
+            result1 = self.buytocover(cover_short_price, cover_short_size, order_type)
+            if "完全成交" in result1:
+                result2 = self.buy(open_long_price, open_long_size, order_type)
+                return result1 + result2
+            else:
+                return result1
+        else:   # 回测模式
+            return "回测模拟下单成功！"
+
+    def SELL(self, cover_long_price, cover_long_size, open_short_price, open_short_size, order_type=None):
+        if config.backtest != "enabled":    # 实盘模式
+            order_type = order_type or 0
+            result1 = self.sell(cover_long_price, cover_long_size, order_type)
+            if "完全成交" in result1:
+                result2 = self.sellshort(open_short_price, open_short_size, order_type)
+                return result1 + result2
+            else:
+                return result1
+        else:   # 回测模式
+            return "回测模拟下单成功！"
+
+
+    def get_order_info(self, order_id):
+        """币安交割合约查询订单信息"""
+        result = self.__binance_futures.orderStatus(self.__instrument_id, orderId=order_id)
+        instrument_id = self.__instrument_id
+        action = None
+        if result['side'] == 'BUY' and result["positionSide"] == "BOTH":
+            action = "买入开多"
+        elif result['side'] == 'SELL' and result["positionSide"] == "BOTH":
+            action = "卖出开空"
+        elif result['side'] == 'BUY' and result["positionSide"] == "SHORT":
+            action = "买入平空"
+        elif result['side'] == 'SELL' and result["positionSide"] == "LONG":
+            action = "卖出平多"
+
+        if result['status'] == "FILLED":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": result['avgPrice'],
+                    "数量": result['executedQty'],
+                    "成交金额": result["cumBase"]}
+            return dict
+        elif result['status'] == "REJECTED":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "失败"}
+            return dict
+        elif result['status'] == "CANCELED":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            return dict
+        elif result['status'] == "NEW":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "等待成交"}
+            return dict
+        elif result['status'] == "PARTIALLY_FILLED":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": result['avgPrice'],
+                    "已成交数量": result['executedQty'], "成交金额": result["cumBase"]}
+            return dict
+        elif result['status'] == "EXPIRED":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "订单被交易引擎取消"}
+            return dict
+        elif result['status'] == "PENDING_CANCEL	":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "撤单中"}
+            return dict
+
+    def revoke_order(self, order_id):
+        """币安交割合约撤销订单"""
+        receipt = self.__binance_futures.cancel(self.__instrument_id, orderId=order_id)
+        if receipt['status'] == "CANCELED":
+            return '【交易提醒】撤单成功'
+        else:
+            return '【交易提醒】撤单失败'
+
+    def get_ticker(self):
+        """币安交割合约查询最新价"""
+        response = self.__binance_futures.get_ticker(self.__instrument_id)[0]
+        receipt = {'symbol': response['symbol'], 'last': response['price']}
+        return receipt
+
+    def get_kline(self, time_frame):
+        """
+        币安现货获取k线数据
+        :param time_frame: k线周期。1m， 3m， 5m， 15m， 30m， 1h， 2h， 4h， 6h， 8h， 12h， 1d， 3d， 1w， 1M
+        :return:返回一个列表，包含开盘时间戳、开盘价、最高价、最低价、收盘价、成交量。
+        """
+        receipt = self.__binance_futures.klines(self.__instrument_id, time_frame)  # 获取历史k线数据
+        for item in receipt:
+            item[0] = ts_to_utc_str(int(item[0])/1000)
+            item.pop(6)
+            item.pop(7)
+            item.pop(8)
+            item.pop(6)
+            item.pop(7)
+            item.pop(6)
+        receipt.reverse()
+        return receipt
+
+    def get_position(self):
+        """
+        币安现货获取持仓信息
+        :return: 返回一个字典，{'direction': direction, 'amount': amount, 'price': price}
+        """
+        result = None
+        receipt = self.__binance_futures.position()
+        for item in receipt:
+            if item["symbol"] == self.__instrument_id:
+                if item["positionAmt"] == "0":
+                    direction = "none"
+                else:
+                    direction = 'long' if "-" not in item["positionAmt"] else "short"
+                amount = int(item['positionAmt'])
+                price = float(item["entryPrice"])
+                result = {'direction': direction, 'amount': amount, 'price': price}
+        return result
+
+    def get_contract_value(self):
+        receipt = self.__binance_futures.get_contract_value(self.__instrument_id)
+        return receipt
+
+
+class BINANCESWAP:
+    """币安永续合约rest api"""
+
+    def __init__(self, access_key, secret_key, instrument_id):
+        """
+        初始化
+        :param access_key: api_key
+        :param secret_key: secret_key
+        :param symbol: 合约ID,例如‘BTC-USDT-SWAP'
+        """
+        self.__access_key = access_key
+        self.__secret_key = secret_key
+        self.__instrument_id = "{}{}".format(instrument_id.split("-")[0], instrument_id.split("-")[1])
+        self.__binance_swap = binance_swap
+        self.__binance_swap.set(self.__access_key, self.__secret_key)   # 设置api
+
+    def buy(self, price, size, order_type=None, timeInForce=None):
+        if config.backtest != "enabled":  # 实盘模式
+            order_type = "LIMIT" if order_type is None else order_type  # 默认限价单
+            timeInForce = "GTC" if timeInForce is None else timeInForce  # 默认成交为止，订单会一直有效，直到被成交或者取消。
+            result = self.__binance_swap.order(symbol=self.__instrument_id,
+                                               side="BUY",
+                                               quantity=size,
+                                               price=price,
+                                               orderType=order_type,
+                                               timeInForce=timeInForce)
+            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+                raise SendOrderError(result["msg"])
+            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            # 如果订单状态不是"完全成交"或者"失败"
+            if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
+                if order_info["订单状态"] == "等待成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                            size - state["已成交数量"])
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                        size - state["已成交数量"])
+            if config.automatic_cancellation == "true":
+                # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
+                self.revoke_order(order_id=result['orderId'])
+                state = self.get_order_info(order_id=result['orderId'])
+                return '【交易提醒】' + "下单结果：{}".format(state)
+            else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+        else:  # 回测模式
+            return "回测模拟下单成功！"
+
+    def sell(self, price, size, order_type=None, timeInForce=None):
+        if config.backtest != "enabled":  # 实盘模式
+            order_type = "LIMIT" if order_type is None else order_type  # 默认限价单
+            timeInForce = "GTC" if timeInForce is None else timeInForce  # 默认成交为止，订单会一直有效，直到被成交或者取消。
+            result = self.__binance_swap.order(symbol=self.__instrument_id,
+                                               side="SELL",
+                                               positionSide="LONG",
+                                               quantity=size,
+                                               price=price,
+                                               orderType=order_type,
+                                               timeInForce=timeInForce)
+            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+                raise SendOrderError(result["msg"])
+            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            # 如果订单状态不是"完全成交"或者"失败"
+            if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
+                if order_info["订单状态"] == "等待成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                            size - state["已成交数量"])
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                        size - state["已成交数量"])
+            if config.automatic_cancellation == "true":
+                # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
+                self.revoke_order(order_id=result['orderId'])
+                state = self.get_order_info(order_id=result['orderId'])
+                return '【交易提醒】' + "下单结果：{}".format(state)
+            else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+        else:  # 回测模式
+            return "回测模拟下单成功！"
+
+    def buytocover(self, price, size, order_type=None, timeInForce=None):
+        if config.backtest != "enabled":  # 实盘模式
+            order_type = "LIMIT" if order_type is None else order_type  # 默认限价单
+            timeInForce = "GTC" if timeInForce is None else timeInForce  # 默认成交为止，订单会一直有效，直到被成交或者取消。
+            result = self.__binance_swap.order(symbol=self.__instrument_id,
+                                               side="BUY",
+                                               positionSide="SHORT",
+                                               quantity=size,
+                                               price=price,
+                                               orderType=order_type,
+                                               timeInForce=timeInForce)
+            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+                raise SendOrderError(result["msg"])
+            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            # 如果订单状态不是"完全成交"或者"失败"
+            if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
+                if order_info["订单状态"] == "等待成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                            size - state["已成交数量"])
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                        size - state["已成交数量"])
+            if config.automatic_cancellation == "true":
+                # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
+                self.revoke_order(order_id=result['orderId'])
+                state = self.get_order_info(order_id=result['orderId'])
+                return '【交易提醒】' + "下单结果：{}".format(state)
+            else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+        else:  # 回测模式
+            return "回测模拟下单成功！"
+
+    def sellshort(self, price, size, order_type=None, timeInForce=None):
+        if config.backtest != "enabled":  # 实盘模式
+            order_type = "LIMIT" if order_type is None else order_type  # 默认限价单
+            timeInForce = "GTC" if timeInForce is None else timeInForce  # 默认成交为止，订单会一直有效，直到被成交或者取消。
+            result = self.__binance_swap.order(symbol=self.__instrument_id,
+                                               side="SELL",
+                                               positionSide="BOTH",
+                                               quantity=size,
+                                               price=price,
+                                               orderType=order_type,
+                                               timeInForce=timeInForce)
+            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+                raise SendOrderError(result["msg"])
+            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            # 如果订单状态不是"完全成交"或者"失败"
+            if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
+                if order_info["订单状态"] == "等待成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        self.revoke_order(order_id=result['orderId'])
+                        state = self.get_order_info(order_id=result['orderId'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                            size - state["已成交数量"])
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                if order_info["订单状态"] == "部分成交":
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    if state['订单状态'] == "撤单成功":
+                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                        size - state["已成交数量"])
+            if config.automatic_cancellation == "true":
+                # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
+                self.revoke_order(order_id=result['orderId'])
+                state = self.get_order_info(order_id=result['orderId'])
+                return '【交易提醒】' + "下单结果：{}".format(state)
+            else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
+                return '【交易提醒】' + "下单结果：{}".format(order_info)
+        else:  # 回测模式
+            return "回测模拟下单成功！"
+
+    def BUY(self, cover_short_price, cover_short_size, open_long_price, open_long_size, order_type=None):
+        if config.backtest != "enabled":    # 实盘模式
+            order_type = order_type or 0
+            result1 = self.buytocover(cover_short_price, cover_short_size, order_type)
+            if "完全成交" in result1:
+                result2 = self.buy(open_long_price, open_long_size, order_type)
+                return result1 + result2
+            else:
+                return result1
+        else:   # 回测模式
+            return "回测模拟下单成功！"
+
+    def SELL(self, cover_long_price, cover_long_size, open_short_price, open_short_size, order_type=None):
+        if config.backtest != "enabled":    # 实盘模式
+            order_type = order_type or 0
+            result1 = self.sell(cover_long_price, cover_long_size, order_type)
+            if "完全成交" in result1:
+                result2 = self.sellshort(open_short_price, open_short_size, order_type)
+                return result1 + result2
+            else:
+                return result1
+        else:   # 回测模式
+            return "回测模拟下单成功！"
+
+
+    def get_order_info(self, order_id):
+        """币安交割合约查询订单信息"""
+        result = self.__binance_swap.orderStatus(self.__instrument_id, orderId=order_id)
+        instrument_id = self.__instrument_id
+        action = None
+        if result['side'] == 'BUY' and result["positionSide"] == "BOTH":
+            action = "买入开多"
+        elif result['side'] == 'SELL' and result["positionSide"] == "BOTH":
+            action = "卖出开空"
+        elif result['side'] == 'BUY' and result["positionSide"] == "SHORT":
+            action = "买入平空"
+        elif result['side'] == 'SELL' and result["positionSide"] == "LONG":
+            action = "卖出平多"
+
+        if result['status'] == "FILLED":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": result['avgPrice'],
+                    "数量": result['executedQty'],
+                    "成交金额": result["cumBase"]}
+            return dict
+        elif result['status'] == "REJECTED":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "失败"}
+            return dict
+        elif result['status'] == "CANCELED":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            return dict
+        elif result['status'] == "NEW":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "等待成交"}
+            return dict
+        elif result['status'] == "PARTIALLY_FILLED":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": result['avgPrice'],
+                    "已成交数量": result['executedQty'], "成交金额": result["cumBase"]}
+            return dict
+        elif result['status'] == "EXPIRED":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "订单被交易引擎取消"}
+            return dict
+        elif result['status'] == "PENDING_CANCEL	":
+            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "撤单中"}
+            return dict
+
+    def revoke_order(self, order_id):
+        """币安交割合约撤销订单"""
+        receipt = self.__binance_swap.cancel(self.__instrument_id, orderId=order_id)
+        if receipt['status'] == "CANCELED":
+            return '【交易提醒】撤单成功'
+        else:
+            return '【交易提醒】撤单失败'
+
+    def get_ticker(self):
+        """币安交割合约查询最新价"""
+        response = self.__binance_swap.get_ticker(self.__instrument_id)
+        receipt = {'symbol': response['symbol'], 'last': response['price']}
+        return receipt
+
+    def get_kline(self, time_frame):
+        """
+        币安现货获取k线数据
+        :param time_frame: k线周期。1m， 3m， 5m， 15m， 30m， 1h， 2h， 4h， 6h， 8h， 12h， 1d， 3d， 1w， 1M
+        :return:返回一个列表，包含开盘时间戳、开盘价、最高价、最低价、收盘价、成交量。
+        """
+        receipt = self.__binance_swap.klines(self.__instrument_id, time_frame)  # 获取历史k线数据
+        for item in receipt:
+            item[0] = ts_to_utc_str(int(item[0])/1000)
+            item.pop(6)
+            item.pop(7)
+            item.pop(8)
+            item.pop(6)
+            item.pop(7)
+            item.pop(6)
+        receipt.reverse()
+        return receipt
+
+    def get_position(self):
+        """
+        币安现货获取持仓信息
+        :return: 返回一个字典，{'direction': direction, 'amount': amount, 'price': price}
+        """
+        result = None
+        receipt = self.__binance_swap.position()
+        for item in receipt:
+            if item["symbol"] == self.__instrument_id:
+                if item["positionAmt"] == "0.000":
+                    direction = "none"
+                else:
+                    direction = 'long' if "-" not in item["positionAmt"] else "short"
+                amount = float(item['positionAmt'])
+                price = float(item["entryPrice"])
+                result = {'direction': direction, 'amount': amount, 'price': price}
+        return result
+
+    def get_contract_value(self):
+        receipt = self.__binance_swap.get_contract_value(self.__instrument_id)
+        return receipt
+
