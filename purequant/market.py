@@ -30,7 +30,7 @@ class MARKET:
         :return:
         """
         if config.backtest == "enabled":    # 回测模式
-            return float(kline[-1][1])
+            return float(kline[param][1])
         else:   # 实盘模式
             records = self.__platform.get_kline(self.__time_frame)
             records.reverse()
@@ -45,7 +45,7 @@ class MARKET:
         :return:
         """
         if config.backtest == "enabled":
-            return float(kline[-1][2])
+            return float(kline[param][2])
         else:
             records = self.__platform.get_kline(self.__time_frame)
             records.reverse()
@@ -60,7 +60,7 @@ class MARKET:
         :return:
         """
         if config.backtest == "enabled":
-            return float(kline[-1][3])
+            return float(kline[param][3])
         else:
             records = self.__platform.get_kline(self.__time_frame)
             records.reverse()
@@ -75,7 +75,7 @@ class MARKET:
         :return:
         """
         if config.backtest == "enabled":
-            return float(kline[-1][4])
+            return float(kline[param][4])
         else:
             records = self.__platform.get_kline(self.__time_frame)
             records.reverse()
