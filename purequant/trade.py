@@ -699,7 +699,7 @@ class OKEXSPOT:
         currency = self.__instrument_id.split('-')[0]
         receipt = self.__okex_spot.get_coin_account_info(currency=currency)
         direction = 'long'
-        amount = receipt['balance']
+        amount = float(receipt['balance'])
         price = None
         result = {'direction': direction, 'amount': amount, 'price': price}
         return result
