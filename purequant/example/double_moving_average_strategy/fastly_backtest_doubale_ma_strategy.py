@@ -26,34 +26,37 @@ from purequant.config import config
 class Strategy:
 
     def __init__(self, instrument_id, time_frame, fast_length, slow_length, long_stop, short_stop, start_asset):
-        print("{} {} 双均线多空策略已启动！".format(get_localtime(), instrument_id))   # 程序启动时打印提示信息
-        config.loads('config.json')  # 载入配置文件
-        self.instrument_id = instrument_id  # 合约ID
-        self.time_frame = time_frame  # k线周期
-        self.exchange = OKEXFUTURES(config.access_key, config.secret_key, config.passphrase, self.instrument_id)  # 初始化交易所
-        self.position = POSITION(self.exchange, self.instrument_id, self.time_frame)  # 初始化potion
-        self.market = MARKET(self.exchange, self.instrument_id, self.time_frame)  # 初始化market
-        self.indicators = INDICATORS(self.exchange, self.instrument_id, self.time_frame)    # 初始化indicators
-        self.logger = LOGGER('config.json')     # 初始化logger
-        # 在第一次运行程序时，将初始资金数据保存至数据库中
-        self.database = "回测"    # 无论实盘或回测，此处database名称可以任意命名
-        self.datasheet = self.instrument_id.split("-")[0].lower() + "_" + time_frame
-        if config.first_run == "true":
-            storage.mysql_save_strategy_run_info(self.database, self.datasheet, get_localtime(),
-                                            "none", 0, 0, 0, 0, "none", 0, 0, 0, start_asset)
-        # 读取数据库中保存的总资金数据
-        self.total_asset = storage.read_mysql_datas(0, self.database, self.datasheet, "总资金", ">")[-1][-1]
-        self.total_profit = storage.read_mysql_datas(0, self.database, self.datasheet, "总资金", ">")[-1][-2]  # 策略总盈亏
-        self.counter = 0  # 计数器
-        self.fast_length = fast_length  # 短周期均线长度
-        self.slow_length = slow_length  # 长周期均线长度
-        self.long_stop = long_stop   # 多单止损幅度
-        self.short_stop = short_stop    # 空单止损幅度
-        self.contract_value = self.market.contract_value()  # 合约面值，每次获取需发起网络请求，故于此处声明变量，优化性能
-        # 声明持仓方向、数量与价格变量，每次开平仓后手动重新赋值
-        self.hold_direction = "none"
-        self.hold_amount = 0
-        self.hold_price = 0
+        try:
+            print("{} {} 双均线多空策略已启动！".format(get_localtime(), instrument_id))   # 程序启动时打印提示信息
+            config.loads('config.json')  # 载入配置文件
+            self.instrument_id = instrument_id  # 合约ID
+            self.time_frame = time_frame  # k线周期
+            self.exchange = OKEXFUTURES(config.access_key, config.secret_key, config.passphrase, self.instrument_id)  # 初始化交易所
+            self.position = POSITION(self.exchange, self.instrument_id, self.time_frame)  # 初始化potion
+            self.market = MARKET(self.exchange, self.instrument_id, self.time_frame)  # 初始化market
+            self.indicators = INDICATORS(self.exchange, self.instrument_id, self.time_frame)    # 初始化indicators
+            self.logger = LOGGER('config.json')     # 初始化logger
+            # 在第一次运行程序时，将初始资金数据保存至数据库中
+            self.database = "回测"    # 无论实盘或回测，此处database名称可以任意命名
+            self.datasheet = self.instrument_id.split("-")[0].lower() + "_" + time_frame
+            if config.first_run == "true":
+                storage.mysql_save_strategy_run_info(self.database, self.datasheet, get_localtime(),
+                                                "none", 0, 0, 0, 0, "none", 0, 0, 0, start_asset)
+            # 读取数据库中保存的总资金数据
+            self.total_asset = storage.read_mysql_datas(0, self.database, self.datasheet, "总资金", ">")[-1][-1]
+            self.total_profit = storage.read_mysql_datas(0, self.database, self.datasheet, "总资金", ">")[-1][-2]  # 策略总盈亏
+            self.counter = 0  # 计数器
+            self.fast_length = fast_length  # 短周期均线长度
+            self.slow_length = slow_length  # 长周期均线长度
+            self.long_stop = long_stop   # 多单止损幅度
+            self.short_stop = short_stop    # 空单止损幅度
+            self.contract_value = self.market.contract_value()  # 合约面值，每次获取需发起网络请求，故于此处声明变量，优化性能
+            # 声明持仓方向、数量与价格变量，每次开平仓后手动重新赋值
+            self.hold_direction = "none"
+            self.hold_amount = 0
+            self.hold_price = 0
+        except Exception as msg:
+            self.logger.warning(msg)
 
 
     def begin_trade(self, kline=None):

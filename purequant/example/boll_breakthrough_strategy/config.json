@@ -1,0 +1,86 @@
+{
+    "STATUS": {
+        "first_run": "true"
+    },
+    "MODE": {
+        "backtest": "enabled"
+    },
+    "ASSISTANT": {
+        "automatic_cancellation": "true",
+        "reissue_order": "0.1%",
+        "price_cancellation": "true",
+        "amplitude": "0.5%",
+        "time_cancellation": "true",
+        "seconds": 10
+    },
+    "EXCHANGE": {
+        "access_key": "your access key",
+        "secret_key": "your secret key",
+        "passphrase": "your passphrase"
+    },
+    "MYSQL": {
+        "authorization": "disabled",
+        "user_name": "root",
+        "password": ""
+    },
+    "MONGODB": {
+        "authorization": "disabled",
+        "user_name": "root",
+        "password": ""
+    },
+    "PUSH": {
+        "sendmail": "false",
+        "dingtalk": "true",
+        "twilio": "false"
+    },
+    "SYNCHRONIZE": {
+        "overprice": {
+            "range": "0.1%"
+        }
+    },
+    "LOG": {
+        "level": "debug",
+        "handler": "stream"
+    },
+    "MARKETS_SERVER": {
+        "platform": {
+            "huobi": {
+                "console": "false",
+                "database": "trade",
+                "collection": "hbdata",
+                "channels": [
+                ["market.BTC_NW.depth.step6"], ["market.BTC_CQ.kline.1min"]
+                ]
+            }
+        }
+    },
+    "POSITION_SERVER": {
+        "platform": {
+            "okex": {
+                    "futures_usd": "false",
+                    "futures_usdt": "true",
+                    "delivery_date": "201225",
+                    "swap_usd": "false",
+                    "swap_usdt": "false",
+                    "spot": "false",
+                    "margin": "false"
+            }
+        }
+    },
+    "DINGTALK": {
+        "ding_talk_api": "https://oapi.dingtalk.com/robot/send?access_token=d3a36823cccca302e51a1c9e83dbd79d74b453"
+    },
+    "TWILIO": {
+        "accountSID" : "AC97a11fcd39061ad140f",
+        "authToken" : "3616b6ced82fa4aa559",
+        "myNumber" : "+8615312345678",
+        "twilio_Number" : "+12058958974"
+    },
+    "SENDMAIL": {
+        "from_addr" : "123456789@qq.com",
+        "password" : "xxeqsfqwcjgj",
+        "to_addr" : "iloveyou@icloud.com",
+        "smtp_server" : "smtp.qq.com",
+        "port": 587
+    }
+}

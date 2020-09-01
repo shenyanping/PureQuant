@@ -15,7 +15,8 @@ setup(
         "purequant/exchange/okex",
         "purequant/exchange/binance",
         "purequant/example/double_moving_average_strategy",
-        "purequant/example/plot_signal"
+        "purequant/example/plot_signal",
+        "purequant/example/boll_breakthrough_strategy"
     ],
     platforms="any",
     description="数字货币程序化交易开源框架，助力中小投资者快速搭建程序化交易系统。",
