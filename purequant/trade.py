@@ -42,34 +42,59 @@ class OKEXFUTURES:
             if config.price_cancellation == "true": # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                        try:    # 如果撤单失败，则订单可能在此期间已完全成交或部分成交
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功": # 已完全成交时，以原下单数量重发；部分成交时，重发委托数量为原下单数量减去已成交数量
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:     # 撤单失败时，说明订单已完全成交
+                            order_info = self.get_order_info(order_id=result['order_id'])   # 再查询一次订单状态
+                            if order_info["订单状态"] == "完全成交":
+                                return  '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:     # 撤单失败时，说明订单已完全成交，再查询一次订单状态，如果已完全成交，返回下单结果
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                            if order_info["订单状态"] == "完全成交":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true": # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['order_id'])
                 if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                        if order_info["订单状态"] == "完全成交":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                        if order_info["订单状态"] == "完全成交":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['order_id'])
-                state = self.get_order_info(order_id=result['order_id'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['order_id'])
+                    state = self.get_order_info(order_id=result['order_id'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                    if order_info["订单状态"] == "完全成交":
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:   # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:   # 回测模式
@@ -86,34 +111,59 @@ class OKEXFUTURES:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                            if order_info["订单状态"] == "完全成交":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                            if order_info["订单状态"] == "完全成交":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['order_id'])
                 if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                        if order_info["订单状态"] == "完全成交":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                        if order_info["订单状态"] == "完全成交":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['order_id'])
-                state = self.get_order_info(order_id=result['order_id'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['order_id'])
+                    state = self.get_order_info(order_id=result['order_id'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                    if order_info["订单状态"] == "完全成交":
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:   # 回测模式
@@ -131,34 +181,59 @@ class OKEXFUTURES:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                            if order_info["订单状态"] == "完全成交":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                            if order_info["订单状态"] == "完全成交":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['order_id'])
                 if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                        if order_info["订单状态"] == "完全成交":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                        if order_info["订单状态"] == "完全成交":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['order_id'])
-                state = self.get_order_info(order_id=result['order_id'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['order_id'])
+                    state = self.get_order_info(order_id=result['order_id'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                    if order_info["订单状态"] == "完全成交":
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:   # 回测模式
@@ -175,34 +250,59 @@ class OKEXFUTURES:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                            if order_info["订单状态"] == "完全成交":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                            if order_info["订单状态"] == "完全成交":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['order_id'])
                 if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                        if order_info["订单状态"] == "完全成交":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                        if order_info["订单状态"] == "完全成交":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['order_id'])
-                state = self.get_order_info(order_id=result['order_id'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['order_id'])
+                    state = self.get_order_info(order_id=result['order_id'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
+                    if order_info["订单状态"] == "完全成交":
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:   # 回测模式
@@ -256,30 +356,31 @@ class OKEXFUTURES:
         if result['type'] == '4':
             action = "买入平空"
         if int(result['state']) == 2:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": result['price_avg'],
-                    "数量": result['filled_qty'],
+            dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": float(result['price_avg']),
+                    "已成交数量": int(result['filled_qty']),
                     "成交金额": round(int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']),
                                   2)}
             return dict
         elif int(result['state']) == -2:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "失败"}
+            dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "失败"}
             return dict
         elif int(result['state']) == -1:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功", "成交均价": float(result['price_avg']),
+                    "已成交数量": int(result['filled_qty']), "成交金额": round(int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
             return dict
         elif int(result['state']) == 0:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "等待成交"}
+            dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "等待成交"}
             return dict
         elif int(result['state']) == 1:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": result['price_avg'],
-                    "已成交数量": result['filled_qty'], "成交金额": round(
+            dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": float(result['price_avg']),
+                    "已成交数量": int(result['filled_qty']), "成交金额": round(
                     int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
             return dict
         elif int(result['state']) == 3:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "下单中"}
+            dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "下单中"}
             return dict
         elif int(result['state']) == 4:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "撤单中"}
+            dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "撤单中"}
             return dict
 
 
@@ -379,35 +480,60 @@ class OKEXSPOT:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except: # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":    # 部分成交时撤单然后重发委托，下单数量为原下单数量减去已成交数量
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except: # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['order_id'])
                 if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":    # 部分成交时撤单然后重发委托，下单数量为原下单数量减去已成交数量
-                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['order_id'])
                         state = self.get_order_info(order_id=result['order_id'])
                         if state['订单状态'] == "撤单成功":
                             return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:  # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":    # 部分成交时撤单然后重发委托，下单数量为原下单数量减去已成交数量
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except: # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['order_id'])
-                state = self.get_order_info(order_id=result['order_id'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['order_id'])
+                    state = self.get_order_info(order_id=result['order_id'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:  # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
+                    order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:   # 回测模式
@@ -437,35 +563,60 @@ class OKEXSPOT:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except: # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":    # 部分成交时撤单然后重发委托，下单数量为原下单数量减去已成交数量
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except: # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['order_id'])
                 if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":    # 部分成交时撤单然后重发委托，下单数量为原下单数量减去已成交数量
-                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['order_id'])
                         state = self.get_order_info(order_id=result['order_id'])
                         if state['订单状态'] == "撤单成功":
                             return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:  # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":    # 部分成交时撤单然后重发委托，下单数量为原下单数量减去已成交数量
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except: # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['order_id'])
-                state = self.get_order_info(order_id=result['order_id'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['order_id'])
+                    state = self.get_order_info(order_id=result['order_id'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:  # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
+                    order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:   # 回测模式
@@ -491,27 +642,28 @@ class OKEXSPOT:
         if result['side'] == 'sell':
             action = "卖出平多"
         if int(result['state']) == 2:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": result['price_avg'],
-                    "数量": result['filled_size'], "成交金额": result['filled_notional']}
+            dict = {"交易所": "Okex现货", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": float(result['price_avg']),
+                    "已成交数量": float(result['filled_size']), "成交金额": float(result['filled_notional'])}
             return dict
         elif int(result['state']) == -2:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "失败"}
+            dict = {"交易所": "Okex现货", "合约ID": instrument_id, "方向": action, "订单状态": "失败"}
             return dict
         elif int(result['state']) == -1:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            dict = {"交易所": "Okex现货", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功", "成交均价": float(result['price_avg']),
+                    "已成交数量": float(result['filled_size']), "成交金额": float(result['filled_notional'])}
             return dict
         elif int(result['state']) == 0:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "等待成交"}
+            dict = {"交易所": "Okex现货", "合约ID": instrument_id, "方向": action, "订单状态": "等待成交"}
             return dict
         elif int(result['state']) == 1:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": result['price_avg'],
-                    "已成交数量": result['filled_size'], "已成交金额": result['filled_notional']}
+            dict = {"交易所": "Okex现货", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": float(result['price_avg']),
+                    "已成交数量": float(result['filled_size']), "成交金额": float(result['filled_notional'])}
             return dict
         elif int(result['state']) == 3:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "下单中"}
+            dict = {"交易所": "Okex现货", "合约ID": instrument_id, "方向": action, "订单状态": "下单中"}
             return dict
         elif int(result['state']) == 4:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "撤单中"}
+            dict = {"交易所": "Okex现货", "合约ID": instrument_id, "方向": action, "订单状态": "撤单中"}
             return dict
 
     def get_kline(self, time_frame):
@@ -577,34 +729,59 @@ class OKEXSWAP:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['order_id'])
                 if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['order_id'])
-                state = self.get_order_info(order_id=result['order_id'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['order_id'])
+                    state = self.get_order_info(order_id=result['order_id'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:   # 回测模式
@@ -621,34 +798,59 @@ class OKEXSWAP:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['order_id'])
                 if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['order_id'])
-                state = self.get_order_info(order_id=result['order_id'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['order_id'])
+                    state = self.get_order_info(order_id=result['order_id'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:   # 回测模式
@@ -665,34 +867,59 @@ class OKEXSWAP:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['order_id'])
                 if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['order_id'])
-                state = self.get_order_info(order_id=result['order_id'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['order_id'])
+                    state = self.get_order_info(order_id=result['order_id'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:   # 回测模式
@@ -709,34 +936,59 @@ class OKEXSWAP:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['order_id'])
-                        state = self.get_order_info(order_id=result['order_id'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['order_id'])
+                            state = self.get_order_info(order_id=result['order_id'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['order_id'])
                 if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['order_id'])
-                    state = self.get_order_info(order_id=result['order_id'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['order_id'])
+                        state = self.get_order_info(order_id=result['order_id'])
+                        if state['订单状态'] == "撤单成功":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['order_id'])
-                state = self.get_order_info(order_id=result['order_id'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['order_id'])
+                    state = self.get_order_info(order_id=result['order_id'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:   # 回测模式
@@ -790,29 +1042,31 @@ class OKEXSWAP:
         if result['type'] == '4':
             action = "买入平空"
         if int(result['state']) == 2:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": result['price_avg'],
-                    "数量": result['filled_qty'], "成交金额": round(
+            dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": float(result['price_avg']),
+                    "已成交数量": int(result['filled_qty']), "成交金额": round(
                     int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
             return dict
         elif int(result['state']) == -2:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "失败"}
+            dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "失败"}
             return dict
         elif int(result['state']) == -1:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功", "成交均价": float(result['price_avg']),
+                    "已成交数量": int(result['filled_qty']), "成交金额": round(
+                    int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
             return dict
         elif int(result['state']) == 0:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "等待成交"}
+            dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "等待成交"}
             return dict
         elif int(result['state']) == 1:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": result['price_avg'],
-                    "已成交数量": result['filled_qty'], "成交金额": round(
+            dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": float(result['price_avg']),
+                    "已成交数量": int(result['filled_qty']), "成交金额": round(
                     int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
             return dict
         elif int(result['state']) == 3:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "下单中"}
+            dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "下单中"}
             return dict
         elif int(result['state']) == 4:
-            dict = {"交易所": "Okex", "合约ID": instrument_id, "方向": action, "订单状态": "撤单中"}
+            dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "撤单中"}
             return dict
 
     def get_kline(self, time_frame):
@@ -870,7 +1124,6 @@ class HUOBIFUTURES:
     """火币合约 https://huobiapi.github.io/docs/dm/v1/cn/#5ea2e0cde2"""
     def __init__(self, access_key, secret_key, instrument_id):
         """
-
         :param access_key:
         :param secret_key:
         :param instrument_id: 'BTC-201225'
@@ -888,7 +1141,7 @@ class HUOBIFUTURES:
             self.__contract_type = "next_quarter"
         else:
             self.__contract_type = None
-            raise SymbolError("交易所: Huobi 合约ID错误，只支持当季与次季合约！")
+            raise SymbolError("交易所: Huobi 交割合约ID错误，只支持当季与次季合约！")
 
     def buy(self, price, size, order_type=None, lever_rate=None):
         """
@@ -917,7 +1170,7 @@ class HUOBIFUTURES:
             elif order_type == 4:
                 order_price_type = "opponent"
             else:
-                return "【交易提醒】交易所：Huobi 订单报价类型错误！"
+                return "【交易提醒】交易所：Huobi 交割合约订单报价类型错误！"
             result = self.__huobi_futures.send_contract_order(symbol=self.__symbol, contract_type=self.__contract_type, contract_code=self.__contract_code,
                             client_order_id='', price=price, volume=size, direction='buy',
                             offset='open', lever_rate=20, order_price_type=order_price_type)
@@ -928,34 +1181,59 @@ class HUOBIFUTURES:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id = result['data']['order_id_str'])
-                        state = self.get_order_info(order_id = result['data']['order_id_str'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id = result['data']['order_id_str'])
+                            state = self.get_order_info(order_id = result['data']['order_id_str'])
+                            if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id = result['data']['order_id_str'])
-                        state = self.get_order_info(order_id = result['data']['order_id_str'])
-                        if state['订单状态'] == "部分成交撤销":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id = result['data']['order_id_str'])
+                            state = self.get_order_info(order_id = result['data']['order_id_str'])
+                            if state['订单状态'] == "部分成交撤销":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id = result['data']['order_id_str'])
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
-                    self.revoke_order(order_id = result['data']['order_id_str'])
-                    state = self.get_order_info(order_id = result['data']['order_id_str'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id = result['data']['order_id_str'])
+                        state = self.get_order_info(order_id = result['data']['order_id_str'])
+                        if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id = result['data']['order_id_str'])
-                    state = self.get_order_info(order_id = result['data']['order_id_str'])
-                    if state['订单状态'] == "部分成交撤销":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id = result['data']['order_id_str'])
+                        state = self.get_order_info(order_id = result['data']['order_id_str'])
+                        if state['订单状态'] == "部分成交撤销":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id = result['data']['order_id_str'])
-                state = self.get_order_info(order_id = result['data']['order_id_str'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id = result['data']['order_id_str'])
+                    state = self.get_order_info(order_id = result['data']['order_id_str'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:
@@ -989,7 +1267,7 @@ class HUOBIFUTURES:
             elif order_type == 4:
                 order_price_type = "opponent"
             else:
-                return "【交易提醒】交易所: Huobi 订单报价类型错误！"
+                return "【交易提醒】交易所: Huobi 交割合约订单报价类型错误！"
             result = self.__huobi_futures.send_contract_order(symbol=self.__symbol, contract_type=self.__contract_type, contract_code=self.__contract_code,
                             client_order_id='', price=price, volume=size, direction='sell',
                             offset='close', lever_rate=20, order_price_type=order_price_type)
@@ -1000,34 +1278,59 @@ class HUOBIFUTURES:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "部分成交撤销":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "部分成交撤销":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['data']['order_id_str'])
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "部分成交撤销":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "部分成交撤销":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['data']['order_id_str'])
-                state = self.get_order_info(order_id=result['data']['order_id_str'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['data']['order_id_str'])
+                    state = self.get_order_info(order_id=result['data']['order_id_str'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:
@@ -1060,7 +1363,7 @@ class HUOBIFUTURES:
             elif order_type == 4:
                 order_price_type = "opponent"
             else:
-                return "【交易提醒】交易所: Huobi订单报价类型错误！"
+                return "【交易提醒】交易所: Huobi交割合约订单报价类型错误！"
             result = self.__huobi_futures.send_contract_order(symbol=self.__symbol, contract_type=self.__contract_type, contract_code=self.__contract_code,
                             client_order_id='', price=price, volume=size, direction='buy',
                             offset='close', lever_rate=20, order_price_type=order_price_type)
@@ -1071,34 +1374,59 @@ class HUOBIFUTURES:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "部分成交撤销":
-                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "部分成交撤销":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['data']['order_id_str'])
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state['已成交数量'])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "部分成交撤销":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "部分成交撤销":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['data']['order_id_str'])
-                state = self.get_order_info(order_id=result['data']['order_id_str'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['data']['order_id_str'])
+                    state = self.get_order_info(order_id=result['data']['order_id_str'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:
@@ -1142,34 +1470,59 @@ class HUOBIFUTURES:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state['已成交数量'])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "部分成交撤销":
-                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "部分成交撤销":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['data']['order_id_str'])
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "部分成交撤销":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "部分成交撤销":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['data']['order_id_str'])
-                state = self.get_order_info(order_id=result['data']['order_id_str'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['data']['order_id_str'])
+                    state = self.get_order_info(order_id=result['data']['order_id_str'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:
@@ -1212,9 +1565,9 @@ class HUOBIFUTURES:
         result = self.__huobi_futures.get_contract_order_info(self.__symbol, order_id)
         instrument_id = result['data'][0]['contract_code']
         state = int(result['data'][0]['status'])
-        avg_price = result['data'][0]['trade_avg_price']
-        amount = result['data'][0]['trade_volume']
-        turnover = result['data'][0]['trade_turnover']
+        avg_price = float(result['data'][0]['trade_avg_price'])
+        amount = int(result['data'][0]['trade_volume'])
+        turnover = float(result['data'][0]['trade_turnover'])
         if result['data'][0]['direction'] == "buy" and result['data'][0]['offset'] == "open":
             action = "买入开多"
         elif result['data'][0]['direction'] == "buy" and result['data'][0]['offset'] == "close":
@@ -1226,32 +1579,32 @@ class HUOBIFUTURES:
         else:
             action = "交易方向错误！"
         if state == 6:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": avg_price,
-                    "数量": amount,
-                    "成交金额": turnover}
+            dict = {"交易所": "Huobi交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交",
+                    "成交均价": avg_price, "已成交数量": amount, "成交金额": turnover}
             return dict
         elif state == 1:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "准备提交"}
+            dict = {"交易所": "Huobi交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "准备提交"}
             return dict
         elif state == 7:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            dict = {"交易所": "Huobi交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功",
+                    "成交均价": avg_price, "已成交数量": amount, "成交金额": turnover}
             return dict
         elif state == 2:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "准备提交"}
+            dict = {"交易所": "Huobi交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "准备提交"}
             return dict
         elif state == 4:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": avg_price,
-                    "已成交数量": amount, "成交金额": turnover}
+            dict = {"交易所": "Huobi交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交",
+                    "成交均价": avg_price, "已成交数量": amount, "成交金额": turnover}
             return dict
         elif state == 3:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "已提交"}
+            dict = {"交易所": "Huobi交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "已提交"}
             return dict
         elif state == 11:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "撤单中"}
+            dict = {"交易所": "Huobi交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "撤单中"}
             return dict
         elif state == 5:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交撤销", "成交均价": avg_price,
-                    "数量": amount, "成交金额": turnover}
+            dict = {"交易所": "Huobi交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交撤销",
+                    "成交均价": avg_price, "已成交数量": amount, "成交金额": turnover}
             return dict
 
     def get_kline(self, time_frame):
@@ -1378,35 +1731,60 @@ class HUOBISWAP:
             # 如果订单状态不是"完全成交"或者"失败"
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
-                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                    try:    # 如果撤单成功，重发委托
+                        if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except: # 如果撤单失败，就再查询一次订单状态然后返回结果
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "部分成交撤销":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "部分成交撤销":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['data']['order_id_str'])
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except: # 如果撤单失败，就再查询一次订单状态然后返回结果
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "部分成交撤销":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "部分成交撤销":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except: # 如果撤单失败，就再查询一次订单状态然后返回结果
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['data']['order_id_str'])
-                state = self.get_order_info(order_id=result['data']['order_id_str'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['data']['order_id_str'])
+                    state = self.get_order_info(order_id=result['data']['order_id_str'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                    order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:
@@ -1450,34 +1828,59 @@ class HUOBISWAP:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "撤单成功" or state["订单状态"] == "部分成交撤销":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "部分成交撤销":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "部分成交撤销":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['data']['order_id_str'])
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "撤单成功" or state["订单状态"] == "部分成交撤销":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "部分成交撤销":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "部分成交撤销":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['data']['order_id_str'])
-                state = self.get_order_info(order_id=result['data']['order_id_str'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['data']['order_id_str'])
+                    state = self.get_order_info(order_id=result['data']['order_id_str'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                    order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:
@@ -1521,34 +1924,59 @@ class HUOBISWAP:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "撤单成功" or state["订单状态"] == "部分成交撤销":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "部分成交撤销":
-                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "部分成交撤销":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['data']['order_id_str'])
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "撤单成功" or state["订单状态"] == "部分成交撤销":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "部分成交撤销":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "部分成交撤销":
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['data']['order_id_str'])
-                state = self.get_order_info(order_id=result['data']['order_id_str'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['data']['order_id_str'])
+                    state = self.get_order_info(order_id=result['data']['order_id_str'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                    order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:
@@ -1592,34 +2020,59 @@ class HUOBISWAP:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "撤单成功" or state["订单状态"] == "部分成交撤销":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "部分成交撤销":
-                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "部分成交撤销":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['data']['order_id_str'])
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "撤单成功" or state["订单状态"] == "部分成交撤销":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "部分成交撤销":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "部分成交撤销":
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['data']['order_id_str'])
-                state = self.get_order_info(order_id=result['data']['order_id_str'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['data']['order_id_str'])
+                    state = self.get_order_info(order_id=result['data']['order_id_str'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
+                    order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:
@@ -1662,9 +2115,9 @@ class HUOBISWAP:
         result = self.__huobi_swap.get_contract_order_info(self.__instrument_id, order_id)
         instrument_id = self.__instrument_id
         state = int(result['data'][0]['status'])
-        avg_price = result['data'][0]['trade_avg_price']
-        amount = result['data'][0]['trade_volume']
-        turnover = result['data'][0]['trade_turnover']
+        avg_price = float(result['data'][0]['trade_avg_price'])
+        amount = int(result['data'][0]['trade_volume'])
+        turnover = float(result['data'][0]['trade_turnover'])
         if result['data'][0]['direction'] == "buy" and result['data'][0]['offset'] == "open":
             action = "买入开多"
         elif result['data'][0]['direction'] == "buy" and result['data'][0]['offset'] == "close":
@@ -1676,32 +2129,32 @@ class HUOBISWAP:
         else:
             action = "交易方向错误！"
         if state == 6:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": avg_price,
-                    "数量": amount,
-                    "成交金额": turnover}
+            dict = {"交易所": "Huobi永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交",
+                    "成交均价": avg_price, "已成交数量": amount, "成交金额": turnover}
             return dict
         elif state == 1:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "准备提交"}
+            dict = {"交易所": "Huobi永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "准备提交"}
             return dict
         elif state == 7:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            dict = {"交易所": "Huobi永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功",
+                    "成交均价": avg_price, "已成交数量": amount, "成交金额": turnover}
             return dict
         elif state == 2:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "准备提交"}
+            dict = {"交易所": "Huobi永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "准备提交"}
             return dict
         elif state == 4:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": avg_price,
-                    "已成交数量": amount, "成交金额": turnover}
+            dict = {"交易所": "Huobi永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交",
+                    "成交均价": avg_price, "已成交数量": amount, "成交金额": turnover}
             return dict
         elif state == 3:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "已提交"}
+            dict = {"交易所": "Huobi永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "已提交"}
             return dict
         elif state == 11:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "撤单中"}
+            dict = {"交易所": "Huobi永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "撤单中"}
             return dict
         elif state == 5:
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交撤销", "成交均价": avg_price,
-                    "数量": amount, "成交金额": turnover}
+            dict = {"交易所": "Huobi永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交撤销",
+                    "成交均价": avg_price, "已成交数量": amount, "成交金额": turnover}
             return dict
 
     def get_kline(self, time_frame):
@@ -1813,34 +2266,59 @@ class HUOBISPOT:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "部分成交撤销":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "部分成交撤销":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['data']['order_id_str'])
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "部分成交撤销":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "部分成交撤销":
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['data']['order_id_str'])
-                state = self.get_order_info(order_id=result['data']['order_id_str'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['data']['order_id_str'])
+                    state = self.get_order_info(order_id=result['data']['order_id_str'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:
@@ -1878,34 +2356,59 @@ class HUOBISPOT:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
-                        self.revoke_order(order_id=result['data']['order_id_str'])
-                        state = self.get_order_info(order_id=result['data']['order_id_str'])
-                        if state['订单状态'] == "部分成交撤销":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        try:
+                            self.revoke_order(order_id=result['data']['order_id_str'])
+                            state = self.get_order_info(order_id=result['data']['order_id_str'])
+                            if state['订单状态'] == "部分成交撤销":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
                 time.sleep(config.time_cancellation_seconds)
                 order_info = self.get_order_info(order_id=result['data']['order_id_str'])
                 if order_info["订单状态"] == "准备提交" or order_info["订单状态"] == "已提交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "撤单成功" or state['订单状态'] == "部分成交撤销":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['data']['order_id_str'])
-                    state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    if state['订单状态'] == "部分成交撤销":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    try:
+                        self.revoke_order(order_id=result['data']['order_id_str'])
+                        state = self.get_order_info(order_id=result['data']['order_id_str'])
+                        if state['订单状态'] == "部分成交撤销":
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['data']['order_id_str'])
-                state = self.get_order_info(order_id=result['data']['order_id_str'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['data']['order_id_str'])
+                    state = self.get_order_info(order_id=result['data']['order_id_str'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:
@@ -1921,21 +2424,31 @@ class HUOBISPOT:
             action = "卖出平多"
 
         if result["data"]['state'] == 'filled':
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": result['data']['price'],
-                    "数量": result["data"]["amount"], "成交金额": result['data']["field-cash-amount"]}
+            dict = {"交易所": "Huobi现货", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交",
+                    "成交均价": float(result['data']['price']),
+                    "已成交数量": float(result["data"]["amount"]),
+                    "成交金额": float(result['data']["field-cash-amount"])}
             return dict
         elif result["data"]['state'] == 'canceled':
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            dict = {"交易所": "Huobi现货", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功",
+                    "成交均价": float(result['data']['price']),
+                    "已成交数量": float(result["data"]["amount"]),
+                    "成交金额": float(result['data']["field-cash-amount"])}
             return dict
         elif result["data"]['state'] == 'partial-filled':
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": result['data']['price'],
-                    "已成交数量": result["data"]["field-amount"], "成交金额": result['data']["field-cash-amount"]}
+            dict = {"交易所": "Huobi现货", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交",
+                    "成交均价": float(result['data']['price']),
+                    "已成交数量": float(result["data"]["amount"]),
+                    "成交金额": float(result['data']["field-cash-amount"])}
             return dict
         elif result["data"]['state'] == 'partial-canceled':
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交撤销"}
+            dict = {"交易所": "Huobi现货", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交撤销",
+                    "成交均价": float(result['data']['price']),
+                    "已成交数量": float(result["data"]["amount"]),
+                    "成交金额": float(result['data']["field-cash-amount"])}
             return dict
         elif result["data"]['state'] == 'submitted':
-            dict = {"交易所": "Huobi", "合约ID": instrument_id, "方向": action, "订单状态": "已提交"}
+            dict = {"交易所": "Huobi现货", "合约ID": instrument_id, "方向": action, "订单状态": "已提交"}
             return dict
 
     def revoke_order(self, order_id):
@@ -1997,7 +2510,7 @@ class BINANCESPOT:
         初始化
         :param access_key: api_key
         :param secret_key: secret_key
-        :param symbol: 币对，例如‘BTC-USDT'
+        :param symbol: 币对
         """
         self.__access_key = access_key
         self.__secret_key = secret_key
@@ -2041,36 +2554,61 @@ class BINANCESPOT:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                                size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
                             return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
                                             size - state["已成交数量"])
-            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
-                time.sleep(config.time_cancellation_seconds)
-                order_info = self.get_order_info(order_id=result['orderId'])
-                if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
-                                        size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['orderId'])
-                state = self.get_order_info(order_id=result['orderId'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:  # 回测模式
@@ -2095,36 +2633,61 @@ class BINANCESPOT:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                                size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                            return self.sell(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
                             return self.sell(float(self.get_ticker()['last']) * (1 + config.reissue_order),
                                             size - state["已成交数量"])
-            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
-                time.sleep(config.time_cancellation_seconds)
-                order_info = self.get_order_info(order_id=result['orderId'])
-                if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 + config.reissue_order),
-                                        size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['orderId'])
-                state = self.get_order_info(order_id=result['orderId'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:  # 回测模式
@@ -2141,25 +2704,34 @@ class BINANCESPOT:
             action = "卖出平多"
 
         if result['status'] == "FILLED":
-            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": result['price'],
-                    "数量": result['executedQty'],
-                    "成交金额": result["cummulativeQuoteQty"]}
+            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "完全成交",
+                    "成交均价": float(result['price']),
+                    "数量": float(result['executedQty']),
+                    "成交金额": float(result["cummulativeQuoteQty"])}
             return dict
         elif result['status'] == "REJECTED":
             dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "失败"}
             return dict
         elif result['status'] == "CANCELED":
-            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "撤单成功",
+                    "成交均价": float(result['price']),
+                    "数量": float(result['executedQty']),
+                    "成交金额": float(result["cummulativeQuoteQty"])}
             return dict
         elif result['status'] == "NEW":
             dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "等待成交"}
             return dict
         elif result['status'] == "PARTIALLY_FILLED":
-            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": result['price'],
-                    "已成交数量": result['executedQty'], "成交金额": result["cummulativeQuoteQty"]}
+            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "部分成交",
+                    "成交均价": float(result['price']),
+                    "数量": float(result['executedQty']),
+                    "成交金额": float(result["cummulativeQuoteQty"])}
             return dict
         elif result['status'] == "EXPIRED":
-            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "订单被交易引擎取消"}
+            dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "订单被交易引擎取消",
+                    "成交均价": float(result['price']),
+                    "数量": float(result['executedQty']),
+                    "成交金额": float(result["cummulativeQuoteQty"])}
             return dict
         elif result['status'] == "PENDING_CANCEL	":
             dict = {"交易所": "币安现货", "币对": instrument_id, "方向": action, "订单状态": "撤单中"}
@@ -2213,14 +2785,14 @@ class BINANCESPOT:
 
 
 class BINANCEFUTURES:
-    """币安交割合约rest api"""
+    """币安币本位合约rest api"""
 
     def __init__(self, access_key, secret_key, instrument_id):
         """
         初始化
         :param access_key: api_key
         :param secret_key: secret_key
-        :param symbol: 合约ID,例如'BTC-USD-201225'
+        :param symbol: 合约ID
         """
         self.__access_key = access_key
         self.__secret_key = secret_key
@@ -2247,36 +2819,61 @@ class BINANCEFUTURES:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                                size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
                             return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
                                             size - state["已成交数量"])
-            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
-                time.sleep(config.time_cancellation_seconds)
-                order_info = self.get_order_info(order_id=result['orderId'])
-                if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
-                                        size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['orderId'])
-                state = self.get_order_info(order_id=result['orderId'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['orderId'])
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:  # 回测模式
@@ -2302,36 +2899,61 @@ class BINANCEFUTURES:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                                size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
                             return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order),
                                             size - state["已成交数量"])
-            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
-                time.sleep(config.time_cancellation_seconds)
-                order_info = self.get_order_info(order_id=result['orderId'])
-                if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order),
-                                        size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['orderId'])
-                state = self.get_order_info(order_id=result['orderId'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['orderId'])
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:  # 回测模式
@@ -2357,36 +2979,61 @@ class BINANCEFUTURES:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                                size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
-                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
                             return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order),
                                             size - state["已成交数量"])
-            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
-                time.sleep(config.time_cancellation_seconds)
-                order_info = self.get_order_info(order_id=result['orderId'])
-                if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order),
-                                        size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['orderId'])
-                state = self.get_order_info(order_id=result['orderId'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['orderId'])
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:  # 回测模式
@@ -2412,36 +3059,61 @@ class BINANCEFUTURES:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                                size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
-                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
                             return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order),
                                             size - state["已成交数量"])
-            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
-                time.sleep(config.time_cancellation_seconds)
-                order_info = self.get_order_info(order_id=result['orderId'])
-                if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order),
-                                        size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['orderId'])
-                state = self.get_order_info(order_id=result['orderId'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['orderId'])
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:  # 回测模式
@@ -2473,7 +3145,7 @@ class BINANCEFUTURES:
 
 
     def get_order_info(self, order_id):
-        """币安交割合约查询订单信息"""
+        """币安币本位合约查询订单信息"""
         result = self.__binance_futures.orderStatus(self.__instrument_id, orderId=order_id)
         instrument_id = self.__instrument_id
         action = None
@@ -2487,32 +3159,41 @@ class BINANCEFUTURES:
             action = "卖出平多"
 
         if result['status'] == "FILLED":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": result['avgPrice'],
-                    "数量": result['executedQty'],
-                    "成交金额": result["cumBase"]}
+            dict = {"交易所": "币安币本位合约", "币对": instrument_id, "方向": action, "订单状态": "完全成交",
+                    "成交均价": float(result['avgPrice']),
+                    "已成交数量": int(result['executedQty']),
+                    "成交金额": float(result["cumBase"])}
             return dict
         elif result['status'] == "REJECTED":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "失败"}
+            dict = {"交易所": "币安币本位合约", "币对": instrument_id, "方向": action, "订单状态": "失败"}
             return dict
         elif result['status'] == "CANCELED":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            dict = {"交易所": "币安币本位合约", "币对": instrument_id, "方向": action, "订单状态": "撤单成功",
+                    "成交均价": float(result['avgPrice']),
+                    "已成交数量": int(result['executedQty']),
+                    "成交金额": float(result["cumBase"])}
             return dict
         elif result['status'] == "NEW":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "等待成交"}
+            dict = {"交易所": "币安币本位合约", "币对": instrument_id, "方向": action, "订单状态": "等待成交"}
             return dict
         elif result['status'] == "PARTIALLY_FILLED":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": result['avgPrice'],
-                    "已成交数量": result['executedQty'], "成交金额": result["cumBase"]}
+            dict = {"交易所": "币安币本位合约", "币对": instrument_id, "方向": action, "订单状态": "部分成交",
+                    "成交均价": float(result['avgPrice']),
+                    "已成交数量": int(result['executedQty']),
+                    "成交金额": float(result["cumBase"])}
             return dict
         elif result['status'] == "EXPIRED":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "订单被交易引擎取消"}
+            dict = {"交易所": "币安币本位合约", "币对": instrument_id, "方向": action, "订单状态": "订单被交易引擎取消",
+                    "成交均价": float(result['avgPrice']),
+                    "已成交数量": int(result['executedQty']),
+                    "成交金额": float(result["cumBase"])}
             return dict
         elif result['status'] == "PENDING_CANCEL	":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "撤单中"}
+            dict = {"交易所": "币安币本位合约", "币对": instrument_id, "方向": action, "订单状态": "撤单中"}
             return dict
 
     def revoke_order(self, order_id):
-        """币安交割合约撤销订单"""
+        """币安币本位合约撤销订单"""
         receipt = self.__binance_futures.cancel(self.__instrument_id, orderId=order_id)
         if receipt['status'] == "CANCELED":
             return '【交易提醒】撤单成功'
@@ -2520,7 +3201,7 @@ class BINANCEFUTURES:
             return '【交易提醒】撤单失败'
 
     def get_ticker(self):
-        """币安交割合约查询最新价"""
+        """币安币本位合约查询最新价"""
         response = self.__binance_futures.get_ticker(self.__instrument_id)[0]
         receipt = {'symbol': response['symbol'], 'last': response['price']}
         return receipt
@@ -2567,7 +3248,7 @@ class BINANCEFUTURES:
 
 
 class BINANCESWAP:
-    """币安永续合约rest api"""
+    """币安USDT合约rest api"""
 
     def __init__(self, access_key, secret_key, instrument_id):
         """
@@ -2601,36 +3282,61 @@ class BINANCESWAP:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                                size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
-                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                            return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
                             return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
                                             size - state["已成交数量"])
-            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
-                time.sleep(config.time_cancellation_seconds)
-                order_info = self.get_order_info(order_id=result['orderId'])
-                if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buy(float(self.get_ticker()['last']) * (1 + config.reissue_order),
-                                        size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['orderId'])
-                state = self.get_order_info(order_id=result['orderId'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:  # 回测模式
@@ -2656,36 +3362,61 @@ class BINANCESWAP:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                                size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
-                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                            return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
                             return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order),
                                             size - state["已成交数量"])
-            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
-                time.sleep(config.time_cancellation_seconds)
-                order_info = self.get_order_info(order_id=result['orderId'])
-                if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sell(float(self.get_ticker()['last']) * (1 - config.reissue_order),
-                                        size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['orderId'])
-                state = self.get_order_info(order_id=result['orderId'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:  # 回测模式
@@ -2711,36 +3442,61 @@ class BINANCESWAP:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order),
+                                                size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
-                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
+                            return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    if float(self.get_ticker()['last']) >= price * (1 + config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
                             return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order),
                                             size - state["已成交数量"])
-            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
-                time.sleep(config.time_cancellation_seconds)
-                order_info = self.get_order_info(order_id=result['orderId'])
-                if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.buytocover(float(self.get_ticker()['last']) * (1 + config.reissue_order),
-                                        size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['orderId'])
-                state = self.get_order_info(order_id=result['orderId'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:  # 回测模式
@@ -2766,36 +3522,61 @@ class BINANCESWAP:
             if config.price_cancellation == "true":  # 选择了价格撤单时，如果最新价超过委托价一定幅度，撤单重发，返回下单结果
                 if order_info["订单状态"] == "等待成交":
                     if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+                if order_info["订单状态"] == "部分成交":
+                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                        try:
+                            self.revoke_order(order_id=result['orderId'])
+                            state = self.get_order_info(order_id=result['orderId'])
+                            if state['订单状态'] == "撤单成功":
+                                return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order),
+                                                size - state["已成交数量"])
+                        except:
+                            order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                            if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                                return '【交易提醒】' + "下单结果：{}".format(order_info)
+            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
+                time.sleep(config.time_cancellation_seconds)
+                order_info = self.get_order_info(order_id=result['orderId'])
+                if order_info["订单状态"] == "等待成交":
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
-                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
+                            return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
                 if order_info["订单状态"] == "部分成交":
-                    if float(self.get_ticker()['last']) <= price * (1 - config.price_cancellation_amplitude):
+                    try:
                         self.revoke_order(order_id=result['orderId'])
                         state = self.get_order_info(order_id=result['orderId'])
                         if state['订单状态'] == "撤单成功":
                             return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order),
                                             size - state["已成交数量"])
-            if config.time_cancellation == "true":  # 选择了时间撤单时，如果委托单发出多少秒后不成交，撤单重发，直至完全成交，返回成交结果
-                time.sleep(config.time_cancellation_seconds)
-                order_info = self.get_order_info(order_id=result['orderId'])
-                if order_info["订单状态"] == "等待成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order), size)
-                if order_info["订单状态"] == "部分成交":
-                    self.revoke_order(order_id=result['orderId'])
-                    state = self.get_order_info(order_id=result['orderId'])
-                    if state['订单状态'] == "撤单成功":
-                        return self.sellshort(float(self.get_ticker()['last']) * (1 - config.reissue_order),
-                                        size - state["已成交数量"])
+                    except:
+                        order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                        if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                            return '【交易提醒】' + "下单结果：{}".format(order_info)
             if config.automatic_cancellation == "true":
                 # 如果订单未完全成交，且未设置价格撤单和时间撤单，且设置了自动撤单，就自动撤单并返回下单结果与撤单结果
-                self.revoke_order(order_id=result['orderId'])
-                state = self.get_order_info(order_id=result['orderId'])
-                return '【交易提醒】' + "下单结果：{}".format(state)
+                try:
+                    self.revoke_order(order_id=result['orderId'])
+                    state = self.get_order_info(order_id=result['orderId'])
+                    return '【交易提醒】' + "下单结果：{}".format(state)
+                except:
+                    order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
+                    if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
+                        return '【交易提醒】' + "下单结果：{}".format(order_info)
             else:  # 未启用交易助手时，下单并查询订单状态后直接返回下单结果
                 return '【交易提醒】' + "下单结果：{}".format(order_info)
         else:  # 回测模式
@@ -2827,7 +3608,7 @@ class BINANCESWAP:
 
 
     def get_order_info(self, order_id):
-        """币安交割合约查询订单信息"""
+        """币安币本位合约查询订单信息"""
         result = self.__binance_swap.orderStatus(self.__instrument_id, orderId=order_id)
         instrument_id = self.__instrument_id
         action = None
@@ -2841,32 +3622,41 @@ class BINANCESWAP:
             action = "卖出平多"
 
         if result['status'] == "FILLED":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": result['avgPrice'],
-                    "数量": result['executedQty'],
-                    "成交金额": result["cumBase"]}
+            dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "完全成交",
+                    "成交均价": float(result['avgPrice']),
+                    "已成交数量": float(result['executedQty']),
+                    "成交金额": float(result["cumBase"])}
             return dict
         elif result['status'] == "REJECTED":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "失败"}
+            dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "失败"}
             return dict
         elif result['status'] == "CANCELED":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "撤单成功"}
+            dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "撤单成功",
+                    "成交均价": float(result['avgPrice']),
+                    "已成交数量": float(result['executedQty']),
+                    "成交金额": float(result["cumBase"])}
             return dict
         elif result['status'] == "NEW":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "等待成交"}
+            dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "等待成交"}
             return dict
         elif result['status'] == "PARTIALLY_FILLED":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": result['avgPrice'],
-                    "已成交数量": result['executedQty'], "成交金额": result["cumBase"]}
+            dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "部分成交",
+                    "成交均价": float(result['avgPrice']),
+                    "已成交数量": float(result['executedQty']),
+                    "成交金额": float(result["cumBase"])}
             return dict
         elif result['status'] == "EXPIRED":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "订单被交易引擎取消"}
+            dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "订单被交易引擎取消",
+                    "成交均价": float(result['avgPrice']),
+                    "已成交数量": float(result['executedQty']),
+                    "成交金额": float(result["cumBase"])}
             return dict
         elif result['status'] == "PENDING_CANCEL	":
-            dict = {"交易所": "币安交割合约", "币对": instrument_id, "方向": action, "订单状态": "撤单中"}
+            dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "撤单中"}
             return dict
 
     def revoke_order(self, order_id):
-        """币安交割合约撤销订单"""
+        """币安币本位合约撤销订单"""
         receipt = self.__binance_swap.cancel(self.__instrument_id, orderId=order_id)
         if receipt['status'] == "CANCELED":
             return '【交易提醒】撤单成功'
@@ -2874,7 +3664,7 @@ class BINANCESWAP:
             return '【交易提醒】撤单失败'
 
     def get_ticker(self):
-        """币安交割合约查询最新价"""
+        """币安币本位合约查询最新价"""
         response = self.__binance_swap.get_ticker(self.__instrument_id)
         receipt = {'symbol': response['symbol'], 'last': response['price']}
         return receipt
