@@ -312,7 +312,7 @@ class OKEXFUTURES:
         if config.backtest != "enabled":    # 实盘模式
             order_type = order_type or 0
             result1 = self.buytocover(cover_short_price, cover_short_size, order_type)
-            if "完全成交" in result1:
+            if "完全成交" in str(result1):
                 result2 = self.buy(open_long_price, open_long_size, order_type)
                 return {"平仓结果": result1, "开仓结果": result2}
             else:
@@ -324,7 +324,7 @@ class OKEXFUTURES:
         if config.backtest != "enabled":    # 实盘模式
             order_type = order_type or 0
             result1 = self.sell(cover_long_price, cover_long_size, order_type)
-            if "完全成交" in result1:
+            if "完全成交" in str(result1):
                 result2 = self.sellshort(open_short_price, open_short_size, order_type)
                 return {"平仓结果": result1, "开仓结果": result2}
             else:
@@ -998,7 +998,7 @@ class OKEXSWAP:
         if config.backtest != "enabled":
             order_type = order_type or 0
             result1 = self.buytocover(cover_short_price, cover_short_size, order_type)
-            if "完全成交" in result1:
+            if "完全成交" in str(result1):
                 result2 = self.buy(open_long_price, open_long_size, order_type)
                 return {"平仓结果": result1, "开仓结果": result2}
             else:
@@ -1010,7 +1010,7 @@ class OKEXSWAP:
         if config.backtest != "enabled":
             order_type = order_type or 0
             result1 = self.sell(cover_long_price, cover_long_size, order_type)
-            if "完全成交" in result1:
+            if "完全成交" in str(result1):
                 result2 = self.sellshort(open_short_price, open_short_size, order_type)
                 return {"平仓结果": result1, "开仓结果": result2}
             else:
@@ -1533,9 +1533,9 @@ class HUOBIFUTURES:
         if config.backtest != "enabled":
             order_type = order_type or 0
             receipt1 = self.buytocover(cover_short_price, cover_short_size, order_type)
-            if "完全成交" in receipt1:
+            if "完全成交" in str(receipt1):
                 receipt2 = self.buy(open_long_price, open_long_size, order_type)
-                return receipt1 + receipt2
+                return {"平仓结果": receipt1, "开仓结果": receipt2}
             else:
                 return receipt1
         else:
@@ -1546,9 +1546,9 @@ class HUOBIFUTURES:
         if config.backtest != "enabled":
             order_type = order_type or 0
             receipt1 = self.sell(cover_long_price, cover_long_size, order_type)
-            if "完全成交" in receipt1:
+            if "完全成交" in str(receipt1):
                 receipt2 = self.sellshort(open_short_price, open_short_size, order_type)
-                return receipt1 + receipt2
+                return {"平仓结果": receipt1, "开仓结果": receipt2}
             else:
                 return receipt1
         else:
@@ -2083,9 +2083,9 @@ class HUOBISWAP:
         if config.backtest != "enabled":
             order_type = order_type or 0
             receipt1 = self.buytocover(cover_short_price, cover_short_size, order_type)
-            if "完全成交" in receipt1:
+            if "完全成交" in str(receipt1):
                 receipt2 = self.buy(open_long_price, open_long_size, order_type)
-                return receipt1 + receipt2
+                return {"平仓结果": receipt1, "开仓结果": receipt2}
             else:
                 return receipt1
         else:
@@ -2096,9 +2096,9 @@ class HUOBISWAP:
         if config.backtest != "enabled":
             order_type = order_type or 0
             receipt1 = self.sell(cover_long_price, cover_long_size, order_type)
-            if "完全成交" in receipt1:
+            if "完全成交" in str(receipt1):
                 receipt2 = self.sellshort(open_short_price, open_short_size, order_type)
-                return receipt1 + receipt2
+                return {"平仓结果": receipt1, "开仓结果": receipt2}
             else:
                 return receipt1
         else:
@@ -3130,7 +3130,7 @@ class BINANCEFUTURES:
         if config.backtest != "enabled":    # 实盘模式
             order_type = order_type or 0
             result1 = self.buytocover(cover_short_price, cover_short_size, order_type)
-            if "完全成交" in result1:
+            if "完全成交" in str(result1):
                 result2 = self.buy(open_long_price, open_long_size, order_type)
                 return {"平仓结果": result1, "开仓结果": result2}
             else:
@@ -3142,7 +3142,7 @@ class BINANCEFUTURES:
         if config.backtest != "enabled":    # 实盘模式
             order_type = order_type or 0
             result1 = self.sell(cover_long_price, cover_long_size, order_type)
-            if "完全成交" in result1:
+            if "完全成交" in str(result1):
                 result2 = self.sellshort(open_short_price, open_short_size, order_type)
                 return {"平仓结果": result1, "开仓结果": result2}
             else:
@@ -3593,7 +3593,7 @@ class BINANCESWAP:
         if config.backtest != "enabled":    # 实盘模式
             order_type = order_type or 0
             result1 = self.buytocover(cover_short_price, cover_short_size, order_type)
-            if "完全成交" in result1:
+            if "完全成交" in str(result1):
                 result2 = self.buy(open_long_price, open_long_size, order_type)
                 return {"平仓结果": result1, "开仓结果": result2}
             else:
@@ -3605,7 +3605,7 @@ class BINANCESWAP:
         if config.backtest != "enabled":    # 实盘模式
             order_type = order_type or 0
             result1 = self.sell(cover_long_price, cover_long_size, order_type)
-            if "完全成交" in result1:
+            if "完全成交" in str(result1):
                 result2 = self.sellshort(open_short_price, open_short_size, order_type)
                 return {"平仓结果": result1, "开仓结果": result2}
             else:
