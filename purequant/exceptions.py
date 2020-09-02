@@ -34,3 +34,6 @@ class MatchError(CunstomException):
 
 class SendOrderError(CunstomException):
     defaul_msg = "下单失败！"
+
+class GetOrderError(CunstomException):
+    defaul_msg = "查询订单失败！"
