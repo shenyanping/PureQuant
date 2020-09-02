@@ -90,7 +90,7 @@ class OKEXFUTURES:
                 try:
                     self.revoke_order(order_id=result['order_id'])
                     state = self.get_order_info(order_id=result['order_id'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
                     if order_info["订单状态"] == "完全成交":
@@ -159,7 +159,7 @@ class OKEXFUTURES:
                 try:
                     self.revoke_order(order_id=result['order_id'])
                     state = self.get_order_info(order_id=result['order_id'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
                     if order_info["订单状态"] == "完全成交":
@@ -229,7 +229,7 @@ class OKEXFUTURES:
                 try:
                     self.revoke_order(order_id=result['order_id'])
                     state = self.get_order_info(order_id=result['order_id'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
                     if order_info["订单状态"] == "完全成交":
@@ -298,7 +298,7 @@ class OKEXFUTURES:
                 try:
                     self.revoke_order(order_id=result['order_id'])
                     state = self.get_order_info(order_id=result['order_id'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['order_id'])  # 再查询一次订单状态
                     if order_info["订单状态"] == "完全成交":
@@ -314,7 +314,7 @@ class OKEXFUTURES:
             result1 = self.buytocover(cover_short_price, cover_short_size, order_type)
             if "完全成交" in result1:
                 result2 = self.buy(open_long_price, open_long_size, order_type)
-                return result1 + result2
+                return {"平仓结果": result1, "开仓结果": result2}
             else:
                 return result1
         else:   # 回测模式
@@ -326,7 +326,7 @@ class OKEXFUTURES:
             result1 = self.sell(cover_long_price, cover_long_size, order_type)
             if "完全成交" in result1:
                 result2 = self.sellshort(open_short_price, open_short_size, order_type)
-                return result1 + result2
+                return {"平仓结果": result1, "开仓结果": result2}
             else:
                 return result1
         else:   # 回测模式
@@ -529,7 +529,7 @@ class OKEXSPOT:
                 try:
                     self.revoke_order(order_id=result['order_id'])
                     state = self.get_order_info(order_id=result['order_id'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:  # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
                     order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -612,7 +612,7 @@ class OKEXSPOT:
                 try:
                     self.revoke_order(order_id=result['order_id'])
                     state = self.get_order_info(order_id=result['order_id'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:  # 如撤单失败，则说明已经完全成交，此时再查询一次订单状态然后返回下单结果
                     order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -777,7 +777,7 @@ class OKEXSWAP:
                 try:
                     self.revoke_order(order_id=result['order_id'])
                     state = self.get_order_info(order_id=result['order_id'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -846,7 +846,7 @@ class OKEXSWAP:
                 try:
                     self.revoke_order(order_id=result['order_id'])
                     state = self.get_order_info(order_id=result['order_id'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -915,7 +915,7 @@ class OKEXSWAP:
                 try:
                     self.revoke_order(order_id=result['order_id'])
                     state = self.get_order_info(order_id=result['order_id'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -984,7 +984,7 @@ class OKEXSWAP:
                 try:
                     self.revoke_order(order_id=result['order_id'])
                     state = self.get_order_info(order_id=result['order_id'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['order_id'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -1000,7 +1000,7 @@ class OKEXSWAP:
             result1 = self.buytocover(cover_short_price, cover_short_size, order_type)
             if "完全成交" in result1:
                 result2 = self.buy(open_long_price, open_long_size, order_type)
-                return result1 + result2
+                return {"平仓结果": result1, "开仓结果": result2}
             else:
                 return result1
         else:   # 回测模式
@@ -1012,7 +1012,7 @@ class OKEXSWAP:
             result1 = self.sell(cover_long_price, cover_long_size, order_type)
             if "完全成交" in result1:
                 result2 = self.sellshort(open_short_price, open_short_size, order_type)
-                return result1 + result2
+                return {"平仓结果": result1, "开仓结果": result2}
             else:
                 return result1
         else:  # 回测模式
@@ -1229,7 +1229,7 @@ class HUOBIFUTURES:
                 try:
                     self.revoke_order(order_id = result['data']['order_id_str'])
                     state = self.get_order_info(order_id = result['data']['order_id_str'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -1326,7 +1326,7 @@ class HUOBIFUTURES:
                 try:
                     self.revoke_order(order_id=result['data']['order_id_str'])
                     state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -1422,7 +1422,7 @@ class HUOBIFUTURES:
                 try:
                     self.revoke_order(order_id=result['data']['order_id_str'])
                     state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -1518,7 +1518,7 @@ class HUOBIFUTURES:
                 try:
                     self.revoke_order(order_id=result['data']['order_id_str'])
                     state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -1780,7 +1780,7 @@ class HUOBISWAP:
                 try:
                     self.revoke_order(order_id=result['data']['order_id_str'])
                     state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
                     order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -1876,7 +1876,7 @@ class HUOBISWAP:
                 try:
                     self.revoke_order(order_id=result['data']['order_id_str'])
                     state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
                     order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -1972,7 +1972,7 @@ class HUOBISWAP:
                 try:
                     self.revoke_order(order_id=result['data']['order_id_str'])
                     state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
                     order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -2068,7 +2068,7 @@ class HUOBISWAP:
                 try:
                     self.revoke_order(order_id=result['data']['order_id_str'])
                     state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:  # 如果撤单失败，就再查询一次订单状态然后返回结果
                     order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -2314,7 +2314,7 @@ class HUOBISPOT:
                 try:
                     self.revoke_order(order_id=result['data']['order_id_str'])
                     state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -2404,7 +2404,7 @@ class HUOBISPOT:
                 try:
                     self.revoke_order(order_id=result['data']['order_id_str'])
                     state = self.get_order_info(order_id=result['data']['order_id_str'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['data']['order_id_str'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -2604,7 +2604,7 @@ class BINANCESPOT:
                 try:
                     self.revoke_order(order_id=result['orderId'])
                     state = self.get_order_info(order_id=result['orderId'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -2683,7 +2683,7 @@ class BINANCESPOT:
                 try:
                     self.revoke_order(order_id=result['orderId'])
                     state = self.get_order_info(order_id=result['orderId'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -2869,7 +2869,7 @@ class BINANCEFUTURES:
                 try:
                     self.revoke_order(order_id=result['orderId'])
                     state = self.get_order_info(order_id=result['orderId'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['orderId'])
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
@@ -2949,7 +2949,7 @@ class BINANCEFUTURES:
                 try:
                     self.revoke_order(order_id=result['orderId'])
                     state = self.get_order_info(order_id=result['orderId'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['orderId'])
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
@@ -3029,7 +3029,7 @@ class BINANCEFUTURES:
                 try:
                     self.revoke_order(order_id=result['orderId'])
                     state = self.get_order_info(order_id=result['orderId'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['orderId'])
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
@@ -3109,7 +3109,7 @@ class BINANCEFUTURES:
                 try:
                     self.revoke_order(order_id=result['orderId'])
                     state = self.get_order_info(order_id=result['orderId'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['orderId'])
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":
@@ -3125,7 +3125,7 @@ class BINANCEFUTURES:
             result1 = self.buytocover(cover_short_price, cover_short_size, order_type)
             if "完全成交" in result1:
                 result2 = self.buy(open_long_price, open_long_size, order_type)
-                return result1 + result2
+                return {"平仓结果": result1, "开仓结果": result2}
             else:
                 return result1
         else:   # 回测模式
@@ -3137,7 +3137,7 @@ class BINANCEFUTURES:
             result1 = self.sell(cover_long_price, cover_long_size, order_type)
             if "完全成交" in result1:
                 result2 = self.sellshort(open_short_price, open_short_size, order_type)
-                return result1 + result2
+                return {"平仓结果": result1, "开仓结果": result2}
             else:
                 return result1
         else:   # 回测模式
@@ -3332,7 +3332,7 @@ class BINANCESWAP:
                 try:
                     self.revoke_order(order_id=result['orderId'])
                     state = self.get_order_info(order_id=result['orderId'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -3412,7 +3412,7 @@ class BINANCESWAP:
                 try:
                     self.revoke_order(order_id=result['orderId'])
                     state = self.get_order_info(order_id=result['orderId'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -3492,7 +3492,7 @@ class BINANCESWAP:
                 try:
                     self.revoke_order(order_id=result['orderId'])
                     state = self.get_order_info(order_id=result['orderId'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -3572,7 +3572,7 @@ class BINANCESWAP:
                 try:
                     self.revoke_order(order_id=result['orderId'])
                     state = self.get_order_info(order_id=result['orderId'])
-                    return '【交易提醒】' + "下单结果：{}".format(state)
+                    return {"【交易提醒】下单结果": state}
                 except:
                     order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
                     if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -3588,7 +3588,7 @@ class BINANCESWAP:
             result1 = self.buytocover(cover_short_price, cover_short_size, order_type)
             if "完全成交" in result1:
                 result2 = self.buy(open_long_price, open_long_size, order_type)
-                return result1 + result2
+                return {"平仓结果": result1, "开仓结果": result2}
             else:
                 return result1
         else:   # 回测模式
@@ -3600,7 +3600,7 @@ class BINANCESWAP:
             result1 = self.sell(cover_long_price, cover_long_size, order_type)
             if "完全成交" in result1:
                 result2 = self.sellshort(open_short_price, open_short_size, order_type)
-                return result1 + result2
+                return {"平仓结果": result1, "开仓结果": result2}
             else:
                 return result1
         else:   # 回测模式
