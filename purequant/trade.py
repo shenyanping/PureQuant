@@ -25,6 +25,13 @@ from purequant.storage import storage
 class OKEXFUTURES:
     """okex交割合约操作  https://www.okex.com/docs/zh/#futures-README"""
     def __init__(self, access_key, secret_key, passphrase, instrument_id):
+        """
+        okex交割合约
+        :param access_key:
+        :param secret_key:
+        :param passphrase:
+        :param instrument_id: 例如："BTC-USD-201225", "BTC-USD-201225"
+        """
         self.__access_key = access_key
         self.__secret_key = secret_key
         self.__passphrase = passphrase
@@ -443,11 +450,11 @@ class OKEXSPOT:
     """okex现货操作  https://www.okex.com/docs/zh/#spot-README"""
     def __init__(self, access_key, secret_key, passphrase, instrument_id):
         """
-
+        okex现货
         :param access_key:
         :param secret_key:
         :param passphrase:
-        :param instrument_id: e.g. etc-usdt
+        :param instrument_id:例如："ETC-USDT"
         """
         self.__access_key = access_key
         self.__secret_key = secret_key
@@ -712,6 +719,13 @@ class OKEXSPOT:
 class OKEXSWAP:
     """okex永续合约操作 https://www.okex.com/docs/zh/#swap-README"""
     def __init__(self, access_key, secret_key, passphrase, instrument_id):
+        """
+        okex永续合约
+        :param access_key:
+        :param secret_key:
+        :param passphrase:
+        :param instrument_id: 例如："BTC-USDT-SWAP", "BTC-USD-SWAP"
+        """
         self.__access_key = access_key
         self.__secret_key = secret_key
         self.__passphrase = passphrase
@@ -1126,18 +1140,18 @@ class HUOBIFUTURES:
         """
         :param access_key:
         :param secret_key:
-        :param instrument_id: 'BTC-201225'
+        :param instrument_id: 'BTC-USD-201225'
         """
         self.__access_key = access_key
         self.__secret_key = secret_key
         self.__instrument_id = instrument_id
         self.__huobi_futures = huobifutures.HuobiFutures(self.__access_key, self.__secret_key)
-        self.__symbol = self.__instrument_id[0:3]
-        self.__contract_code = self.__instrument_id[0:3] + self.__instrument_id[4:10]
+        self.__symbol = self.__instrument_id.split("-")[0]
+        self.__contract_code = self.__instrument_id.split("-")[0] + self.__instrument_id.split("-")[2]
 
-        if self.__instrument_id[6:8] == '03' or self.__instrument_id[6:8] == '09':
+        if self.__instrument_id.split("-")[2][2:4] == '03' or self.__instrument_id.split("-")[2][2:4] == '09':
             self.__contract_type = "quarter"
-        elif self.__instrument_id[6:8] == '06' or self.__instrument_id[6:8] == '12':
+        elif self.__instrument_id.split("-")[2][2:4] == '06' or self.__instrument_id.split("-")[2][2:4] == '12':
             self.__contract_type = "next_quarter"
         else:
             self.__contract_type = None
@@ -1565,9 +1579,9 @@ class HUOBIFUTURES:
         result = self.__huobi_futures.get_contract_order_info(self.__symbol, order_id)
         instrument_id = result['data'][0]['contract_code']
         state = int(result['data'][0]['status'])
-        avg_price = float(result['data'][0]['trade_avg_price'])
-        amount = int(result['data'][0]['trade_volume'])
-        turnover = float(result['data'][0]['trade_turnover'])
+        avg_price = result['data'][0]['trade_avg_price']
+        amount = result['data'][0]['trade_volume']
+        turnover = result['data'][0]['trade_turnover']
         if result['data'][0]['direction'] == "buy" and result['data'][0]['offset'] == "open":
             action = "买入开多"
         elif result['data'][0]['direction'] == "buy" and result['data'][0]['offset'] == "close":
@@ -1687,11 +1701,11 @@ class HUOBISWAP:
         """
         :param access_key:
         :param secret_key:
-        :param instrument_id: 'BTC-USD'
+        :param instrument_id: 'BTC-USD-SWAP'
         """
         self.__access_key = access_key
         self.__secret_key = secret_key
-        self.__instrument_id = instrument_id
+        self.__instrument_id = "{}-{}".format(instrument_id.split("-")[0], instrument_id.split("-")[1])
         self.__huobi_swap = huobiswap.HuobiSwap(self.__access_key, self.__secret_key)
 
     def buy(self, price, size, order_type=None, lever_rate=None):
@@ -2115,9 +2129,9 @@ class HUOBISWAP:
         result = self.__huobi_swap.get_contract_order_info(self.__instrument_id, order_id)
         instrument_id = self.__instrument_id
         state = int(result['data'][0]['status'])
-        avg_price = float(result['data'][0]['trade_avg_price'])
-        amount = int(result['data'][0]['trade_volume'])
-        turnover = float(result['data'][0]['trade_turnover'])
+        avg_price = result['data'][0]['trade_avg_price']
+        amount = result['data'][0]['trade_volume']
+        turnover = result['data'][0]['trade_turnover']
         if result['data'][0]['direction'] == "buy" and result['data'][0]['offset'] == "open":
             action = "买入开多"
         elif result['data'][0]['direction'] == "buy" and result['data'][0]['offset'] == "close":
@@ -2517,11 +2531,12 @@ class BINANCESPOT:
         初始化
         :param access_key: api_key
         :param secret_key: secret_key
-        :param symbol: 币对
+        :param symbol: 币对，例如："EOS-USDT"
         """
         self.__access_key = access_key
         self.__secret_key = secret_key
         self.__instrument_id = symbol.split("-")[0] + symbol.split("-")[1]
+        self.__currency = symbol.split("-")[0]
         self.__binance_spot = binance_spot
         self.__binance_spot.set(self.__access_key, self.__secret_key)   # 设置api
 
@@ -2552,7 +2567,7 @@ class BINANCESPOT:
                                                price=price,
                                                orderType=order_type,
                                                timeInForce=timeInForce)
-            if result["msg"] is not None:   # 如果下单失败就抛出异常，提示错误信息。
+            if "msg" in str(result):   # 如果下单失败就抛出异常，提示错误信息。
                 raise SendOrderError(result["msg"])
             order_info = self.get_order_info(order_id=result['orderId'])   # 下单后查询一次订单状态
             if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -2631,7 +2646,7 @@ class BINANCESPOT:
                                                price=price,
                                                orderType=order_type,
                                                timeInForce=timeInForce)
-            if result["msg"] is not None:   # 如果下单失败就抛出异常，提示错误信息。
+            if "msg" in str(result):   # 如果下单失败就抛出异常，提示错误信息。
                 raise SendOrderError(result["msg"])
             order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
             if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -2702,7 +2717,9 @@ class BINANCESPOT:
 
     def get_order_info(self, order_id):
         """币安现货查询订单信息"""
-        result = self.__binance_spot.orderStatus(self.__instrument_id, orderId=order_id)
+        result = self.__binance_spot.orderStatus(symbol=self.__instrument_id, orderId=order_id)
+        if "msg" in str(result):
+            return self.get_order_info(order_id)
         instrument_id = self.__instrument_id
         action = None
         if result['side'] == 'BUY':
@@ -2783,7 +2800,7 @@ class BINANCESPOT:
         币安现货获取持仓信息
         :return: 返回一个字典，{'direction': direction, 'amount': amount, 'price': price}
         """
-        receipt = self.__binance_spot.balances()[self.__instrument_id]
+        receipt = self.__binance_spot.balances()[self.__currency]
         direction = 'long'
         amount = receipt['free']
         price = None
@@ -2799,11 +2816,14 @@ class BINANCEFUTURES:
         初始化
         :param access_key: api_key
         :param secret_key: secret_key
-        :param symbol: 合约ID
+        :param symbol: 合约ID，例如：交割合约："ADA-USD-200925"  永续合约："ADA-USD-SWAP"
         """
         self.__access_key = access_key
         self.__secret_key = secret_key
-        self.__instrument_id = "{}{}_{}".format(instrument_id.split("-")[0], instrument_id.split("-")[1], instrument_id.split("-")[2])
+        if "SWAP" in instrument_id:
+            self.__instrument_id = "{}{}_{}".format(instrument_id.split("-")[0], instrument_id.split("-")[1], "PERP")
+        else:
+            self.__instrument_id = "{}{}_{}".format(instrument_id.split("-")[0], instrument_id.split("-")[1], instrument_id.split("-")[2])
         self.__binance_futures = binance_futures
         self.__binance_futures.set(self.__access_key, self.__secret_key)   # 设置api
 
@@ -2817,7 +2837,7 @@ class BINANCEFUTURES:
                                                price=price,
                                                orderType=order_type,
                                                timeInForce=timeInForce)
-            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+            if "msg" in str(result):   # 如果下单失败就抛出异常，提示错误信息。
                 raise SendOrderError(result["msg"])
             order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
             if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -2897,7 +2917,7 @@ class BINANCEFUTURES:
                                                price=price,
                                                orderType=order_type,
                                                timeInForce=timeInForce)
-            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+            if "msg" in str(result):   # 如果下单失败就抛出异常，提示错误信息。
                 raise SendOrderError(result["msg"])
             order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
             if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -2977,7 +2997,7 @@ class BINANCEFUTURES:
                                                price=price,
                                                orderType=order_type,
                                                timeInForce=timeInForce)
-            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+            if "msg" in str(result):   # 如果下单失败就抛出异常，提示错误信息。
                 raise SendOrderError(result["msg"])
             order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
             if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -3057,7 +3077,7 @@ class BINANCEFUTURES:
                                                price=price,
                                                orderType=order_type,
                                                timeInForce=timeInForce)
-            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+            if "msg" in str(result):   # 如果下单失败就抛出异常，提示错误信息。
                 raise SendOrderError(result["msg"])
             order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
             if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -3153,7 +3173,7 @@ class BINANCEFUTURES:
 
     def get_order_info(self, order_id):
         """币安币本位合约查询订单信息"""
-        result = self.__binance_futures.orderStatus(self.__instrument_id, orderId=order_id)
+        result = self.__binance_futures.orderStatus(symbol=self.__instrument_id, orderId=order_id)
         instrument_id = self.__instrument_id
         action = None
         if result['side'] == 'BUY' and result["positionSide"] == "BOTH":
@@ -3262,7 +3282,7 @@ class BINANCESWAP:
         初始化
         :param access_key: api_key
         :param secret_key: secret_key
-        :param symbol: 合约ID,例如‘BTC-USDT-SWAP'
+        :param symbol: 合约ID,例如'BTC-USDT-SWAP'
         """
         self.__access_key = access_key
         self.__secret_key = secret_key
@@ -3280,7 +3300,7 @@ class BINANCESWAP:
                                                price=price,
                                                orderType=order_type,
                                                timeInForce=timeInForce)
-            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+            if "msg" in str(result):   # 如果下单失败就抛出异常，提示错误信息。
                 raise SendOrderError(result["msg"])
             order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
             if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -3360,7 +3380,7 @@ class BINANCESWAP:
                                                price=price,
                                                orderType=order_type,
                                                timeInForce=timeInForce)
-            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+            if "msg" in str(result):   # 如果下单失败就抛出异常，提示错误信息。
                 raise SendOrderError(result["msg"])
             order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
             if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -3440,7 +3460,7 @@ class BINANCESWAP:
                                                price=price,
                                                orderType=order_type,
                                                timeInForce=timeInForce)
-            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+            if "msg" in str(result):   # 如果下单失败就抛出异常，提示错误信息。
                 raise SendOrderError(result["msg"])
             order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
             if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -3520,7 +3540,7 @@ class BINANCESWAP:
                                                price=price,
                                                orderType=order_type,
                                                timeInForce=timeInForce)
-            if result["msg"] is not None:  # 如果下单失败就抛出异常，提示错误信息。
+            if "msg" in str(result):   # 如果下单失败就抛出异常，提示错误信息。
                 raise SendOrderError(result["msg"])
             order_info = self.get_order_info(order_id=result['orderId'])  # 下单后查询一次订单状态
             if order_info["订单状态"] == "完全成交" or order_info["订单状态"] == "失败 ":  # 如果订单状态为"完全成交"或者"失败"，返回结果
@@ -3615,8 +3635,8 @@ class BINANCESWAP:
 
 
     def get_order_info(self, order_id):
-        """币安币本位合约查询订单信息"""
-        result = self.__binance_swap.orderStatus(self.__instrument_id, orderId=order_id)
+        """币安USDT合约查询订单信息"""
+        result = self.__binance_swap.orderStatus(symbol=self.__instrument_id, orderId=order_id)
         instrument_id = self.__instrument_id
         action = None
         if result['side'] == 'BUY' and result["positionSide"] == "BOTH":
@@ -3632,7 +3652,7 @@ class BINANCESWAP:
             dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "完全成交",
                     "成交均价": float(result['avgPrice']),
                     "已成交数量": float(result['executedQty']),
-                    "成交金额": float(result["cumBase"])}
+                    "成交金额": float(result["cumQuote"])}
             return dict
         elif result['status'] == "REJECTED":
             dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "失败"}
@@ -3641,7 +3661,7 @@ class BINANCESWAP:
             dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "撤单成功",
                     "成交均价": float(result['avgPrice']),
                     "已成交数量": float(result['executedQty']),
-                    "成交金额": float(result["cumBase"])}
+                    "成交金额": float(result["cumQuote"])}
             return dict
         elif result['status'] == "NEW":
             dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "等待成交"}
@@ -3650,13 +3670,13 @@ class BINANCESWAP:
             dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "部分成交",
                     "成交均价": float(result['avgPrice']),
                     "已成交数量": float(result['executedQty']),
-                    "成交金额": float(result["cumBase"])}
+                    "成交金额": float(result["cumQuote"])}
             return dict
         elif result['status'] == "EXPIRED":
             dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "订单被交易引擎取消",
                     "成交均价": float(result['avgPrice']),
                     "已成交数量": float(result['executedQty']),
-                    "成交金额": float(result["cumBase"])}
+                    "成交金额": float(result["cumQuote"])}
             return dict
         elif result['status'] == "PENDING_CANCEL	":
             dict = {"交易所": "币安USDT合约", "币对": instrument_id, "方向": action, "订单状态": "撤单中"}

@@ -3,7 +3,7 @@ import hashlib
 import logging
 import requests
 import time
-from purequant.time import ts_to_utc_str
+from purequant.time import ts_to_utc_str, get_cur_timestamp_ms
 try:
     from urllib import urlencode
 
@@ -227,7 +227,7 @@ def signedRequest(method, path, params):
         raise ValueError("Api key and secret must be set")
 
     query = urlencode(sorted(params.items()))
-    query += "&timestamp={}".format(int(time.time() * 1000))
+    query += "&timestamp={}".format(get_cur_timestamp_ms()-1000)
     secret = bytes(options["secret"].encode("utf-8"))
     signature = hmac.new(secret, query.encode("utf-8"),
                          hashlib.sha256).hexdigest()
@@ -263,5 +263,4 @@ def get_last_kline(symbol):
     close = data["lastPrice"]
     volume = data["volume"]
     last_kline = [timestamp, open, high, low, close, volume]
-    print(data)
     return last_kline

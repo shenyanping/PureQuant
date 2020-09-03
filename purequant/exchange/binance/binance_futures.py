@@ -194,7 +194,7 @@ def signedRequest(method, path, params):
         raise ValueError("Api key and secret must be set")
 
     query = urlencode(sorted(params.items()))
-    query += "&timestamp={}".format(int(time.time() * 1000))
+    query += "&timestamp={}".format(get_cur_timestamp_ms() - 1000)
     secret = bytes(options["secret"].encode("utf-8"))
     signature = hmac.new(secret, query.encode("utf-8"),
                          hashlib.sha256).hexdigest()
