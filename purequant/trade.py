@@ -365,7 +365,7 @@ class OKEXFUTURES:
         if int(result['state']) == 2:
             dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": float(result['price_avg']),
                     "已成交数量": int(result['filled_qty']),
-                    "成交金额": round(int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']),
+                    "成交金额": round(float(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']),
                                   2)}
             return dict
         elif int(result['state']) == -2:
@@ -373,7 +373,7 @@ class OKEXFUTURES:
             return dict
         elif int(result['state']) == -1:
             dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功", "成交均价": float(result['price_avg']),
-                    "已成交数量": int(result['filled_qty']), "成交金额": round(int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
+                    "已成交数量": int(result['filled_qty']), "成交金额": round(float(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
             return dict
         elif int(result['state']) == 0:
             dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "等待成交"}
@@ -381,7 +381,7 @@ class OKEXFUTURES:
         elif int(result['state']) == 1:
             dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": float(result['price_avg']),
                     "已成交数量": int(result['filled_qty']), "成交金额": round(
-                    int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
+                    float(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
             return dict
         elif int(result['state']) == 3:
             dict = {"交易所": "Okex交割合约", "合约ID": instrument_id, "方向": action, "订单状态": "下单中"}
@@ -1058,7 +1058,7 @@ class OKEXSWAP:
         if int(result['state']) == 2:
             dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "完全成交", "成交均价": float(result['price_avg']),
                     "已成交数量": int(result['filled_qty']), "成交金额": round(
-                    int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
+                    float(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
             return dict
         elif int(result['state']) == -2:
             dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "失败"}
@@ -1066,7 +1066,7 @@ class OKEXSWAP:
         elif int(result['state']) == -1:
             dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "撤单成功", "成交均价": float(result['price_avg']),
                     "已成交数量": int(result['filled_qty']), "成交金额": round(
-                    int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
+                    float(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
             return dict
         elif int(result['state']) == 0:
             dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "等待成交"}
@@ -1074,7 +1074,7 @@ class OKEXSWAP:
         elif int(result['state']) == 1:
             dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "部分成交", "成交均价": float(result['price_avg']),
                     "已成交数量": int(result['filled_qty']), "成交金额": round(
-                    int(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
+                    float(result['contract_val']) * int(result['filled_qty']) * float(result['price_avg']), 2)}
             return dict
         elif int(result['state']) == 3:
             dict = {"交易所": "Okex永续合约", "合约ID": instrument_id, "方向": action, "订单状态": "下单中"}
