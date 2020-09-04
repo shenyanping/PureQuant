@@ -141,6 +141,48 @@ class Storage:
         cursor2.close()
         conn2.close()
 
+    def __binance_save_kline_func(self, database, data_sheet, timestamp, open, high, low, close, volume):
+        """此函数专为存储币安交易所k线的函数使用"""
+        # 检查数据库是否存在，如不存在则创建
+        user = config.mysql_user_name if config.mysql_authorization == "enabled" else 'root'
+        password = config.mysql_password if config.mysql_authorization == "enabled" else 'root'
+        conn1 = mysql.connector.connect(user=user, password=password)
+        cursor1 = conn1.cursor()
+        cursor1.execute("SHOW DATABASES")
+        list1 = []
+        for item in cursor1:
+            for x in item:
+                list1.append(x)
+        if database in list1:
+            pass
+        else:
+            cursor1.execute("CREATE DATABASE {}".format(database))
+        conn1.commit()
+        cursor1.close()
+        conn1.close()
+        # 检查数据表是否存在，如不存在则创建
+        conn2 = mysql.connector.connect(user=user, password=password, database=database)
+        cursor2 = conn2.cursor()
+        cursor2.execute("SHOW TABLES")
+        list2 = []
+        for item in cursor2:
+            for x in item:
+                list2.append(x)
+        if data_sheet in list2:
+            pass
+        else:
+            cursor2.execute("CREATE TABLE {} (timestamp TEXT, open FLOAT, high FLOAT, low FLOAT, close FLOAT, volume FLOAT)".format(data_sheet))
+        # 插入数据
+        cursor2.execute(
+            'insert into {} (timestamp, open, high, low, close, volume) values (%s, %s, %s, %s, %s, %s)'.format(
+                data_sheet),
+            [timestamp, open, high, low, close, volume])
+        # 提交事务
+        conn2.commit()
+        # 关闭游标和连接
+        cursor2.close()
+        conn2.close()
+
     def kline_save(self, database, data_sheet, platform, instrument_id, time_frame):
         """
         从交易所获取k线数据，并将其存储至数据库中
@@ -156,6 +198,14 @@ class Storage:
         for data in result:
             self.__save_kline_func(database, data_sheet, data[0], data[1], data[2], data[3], data[4], data[5], data[6])
         print("获取的历史数据已存储至mysql数据库！")
+
+    def binance_kline_save(self, database, data_sheet, platform, instrument_id, time_frame):
+        """存储币安交易所历史k线"""
+        result = platform.get_kline(time_frame)
+        result.reverse()
+        for data in result:
+            self.__binance_save_kline_func(database, data_sheet, data[0], data[1], data[2], data[3], data[4], data[5])
+        print("{} {} {} 获取的币安交易所的历史k线数据已存储至mysql数据库！".format(time.get_localtime(), instrument_id, time_frame))
 
     def kline_storage(self, database, data_sheet, platform, instrument_id, time_frame):
         """
@@ -179,6 +229,24 @@ class Storage:
                 currency_volume = last_kline[6]
                 self.__save_kline_func(database, data_sheet, timestamp, open, high, low, close, volume, currency_volume)
                 print("时间：{} 实时k线数据已保存至MySQL数据库中！".format(time.get_localtime()))
+                self.__old_kline = last_kline  # 将刚保存的k线设为旧k线
+            else:
+                return
+
+    def binance_kline_storage(self, database, data_sheet, platform, instrument_id, time_frame):
+        """存储实时的币安交易所k线数据"""
+        indicators = INDICATORS(platform, instrument_id, time_frame)
+        if indicators.BarUpdate() == True:
+            last_kline = platform.get_kline(time_frame)[1]
+            if last_kline != self.__old_kline:    # 若获取得k线不同于已保存的上一个k线
+                timestamp = last_kline[0]
+                open = last_kline[1]
+                high = last_kline[2]
+                low = last_kline[3]
+                close = last_kline[4]
+                volume = last_kline[5]
+                self.__binance_save_kline_func(database, data_sheet, timestamp, open, high, low, close, volume)
+                print("{} {} {} 币安交易所实时k线数据已保存至MySQL数据库中！".format(time.get_localtime(), instrument_id, time_frame))
                 self.__old_kline = last_kline  # 将刚保存的k线设为旧k线
             else:
                 return
