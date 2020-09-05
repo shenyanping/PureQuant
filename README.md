@@ -64,12 +64,14 @@ ProjectName
 
 ## 下单交易
 
+`实盘时会真实下单，回测模式下返回模拟下单成功的提示信息`
+
 ```python
-from purequant.trade import OKEXSPOT  # 从trade模块中导入交易所
+from purequant.trade import BINANCESPOT  # 从trade模块中导入币安现货
 from purequant.config import config  # 导入配置模块
 
 config.loads(config_file) 	# 载入配置文件
-exchange = OKEXSPOT(config.access_key, config.secret_key, config.passphrase, instrument_id) # 实例化交易所
+exchange = OKEXSPOT(config.access_key, config.secret_key, instrument_id) # 实例化交易所
 ```
 
 ### 买入开多
@@ -111,7 +113,10 @@ exchange.BUY(平空价格，平空数量，开多价格，开多数量)
 下单后无论是否完全成交，返回下单结果。
 
 ```python
-【交易提醒】下单结果：{'合约ID': 'TRX-USDT-SWAP', '方向': '卖出平多', '订单状态': '完全成交', '成交均价': '0.01784', '数量': '1', '成交金额': 17.84} 
+info = exchange.buy(0.01784, 1)
+print(info)
+
+>>>【交易提醒】下单结果：{'合约ID': 'TRX-USDT', '方向': '卖出平多', '订单状态': '完全成交', '成交均价': '0.01784', '数量': '1', '成交金额': 17.84} 
 ```
 
 ------
@@ -137,15 +142,15 @@ exchange.BUY(平空价格，平空数量，开多价格，开多数量)
 
 ### 自动撤单
 
-将配置文件中的"automatic_cancellation"设置为"true"，即可实现下单后如订单未完全成交就自动撤单。
+将配置文件中的`automatic_cancellation`设置为`true`，即可实现下单后如订单未完全成交就自动撤单。
 
 ### 价格撤单
 
-将配置文件中的"price_cancellation"设置为 "true",当最新价超过委托价一定百分比（"amplitude"），则自动撤单，并以最新价（可以使用超价下单，设置"reissue_order"即可）重发委托。
+将配置文件中的`price_cancellation`设置为 `true`,当最新价超过委托价一定百分比（`amplitude`），则自动撤单，并以最新价（可以使用超价下单，设置`reissue_order`即可）重发委托。
 
 ### 时间撤单
 
-将配置文件中的"time_cancellation"设置为 "true",若超时未成交（"seconds"），则自动撤单，并以最新价（可以使用超价下单，设置"reissue_order"即可）重发委托直至完全成交。
+将配置文件中的`time_cancellation`设置为`true`,若超时未成交（`seconds`），则自动撤单，并以最新价（可以使用超价下单，设置`reissue_order`即可）重发委托直至完全成交。
 
 ### 交易助手使用说明
 
@@ -159,33 +164,30 @@ exchange.BUY(平空价格，平空数量，开多价格，开多数量)
 
 5.建议启用交易助手的三个功能，参数可以按需自行设置。
 
+6.订单状态为`部分成交`的情况下，只会返回最后一笔成交的订单状态。
+
 ------
 
 
 
 ## 智能渠道推送
 
-调用时需先导入push模块中的函数名称：
+`实盘时会实时推送信息，回测模式下不会推送信息`
 
 ```python
 from purequant.push import push
-```
-
-还需导入config模块并载入配置文件
-
-```python
 from purequant.config import config 
 
 config.loads(filename)
 ```
 
-配置文件是一个名为config.json的文件，只需将其中参数修改为自己的即可
+配置文件是一个名为`config.json`的文件，只需将其中参数修改为自己的即可：
 
 ```json
 {
     "PUSH": {
-        "sendmail": "true",
-        "dingtalk": "false",
+        "sendmail": "false",
+        "dingtalk": "true",
         "twilio": "false"
     },
     "DINGTALK": {
@@ -213,7 +215,7 @@ config.loads(filename)
 push("要推送的信息内容")
 ```
 
-在配置文件中，"PUSH"中的对应参数若设置为"true"，使用push()时则会推送消息至相应智能渠道。
+在配置文件中，`PUSH`中的对应参数若设置为`true`，使用`push()`时则会推送消息至相应智能渠道。
 
 twilio所能推送的短信字节过短，因此只能用来发送简短信息，在交易时建议将此项设为"false"。
 
@@ -224,6 +226,8 @@ twilio所能推送的短信字节过短，因此只能用来发送简短信息�
 
 
 ## 获取持仓信息
+
+`实盘时会实时从交易所获取真实的账户持仓信息，回测模式下是从数据库中读取回测过程中保存的持仓信息`
 
 ```python
 from purequant.position import POSITION		# 导入持仓模块
@@ -244,14 +248,12 @@ direction = position.direction()
 
 ```python
 amount = position.amount()
-# 返回整型数字
 ```
 
 ### 当前持仓均价
 
 ```python
 price = position.price()
-# 返回浮点数
 ```
 
 ------
@@ -260,7 +262,7 @@ price = position.price()
 
 ## 获取行情信息
 
-调用时需先导入MARKET模块并创建market对象， 返回浮点数
+`实盘时实时获取交易所的行情数据，回测时是获取PureQuant服务器上数据库中的历史数据`
 
 ```python
 from purequant.market import MARKET
@@ -585,6 +587,8 @@ Process finished with exit code 0
 
 
 ## 交易指标
+
+`实盘时实时获取交易所的行情数据，回测时是获取根据PureQuant服务器上数据库中的历史数据进行计算，具体方法可参阅示例的双均线策略`
 
 调用时需先导入indicators模块：
 
@@ -950,7 +954,9 @@ print(ma90[-1])     # 打印出当前k线上的ma90的值
 
 ## 日志输出
 
-调用时需先导入LOGGER模块，并在当前目录下创建名为"logger"的文件夹用以存放日志输出文件
+调用时需先导入LOGGER模块，并在当前目录下创建名为`logger`的文件夹用以存放日志输出文件
+
+默认文件路径是当前路径下的logger文件夹，也可以自行指定路径：logger = LOGGER(config_file， path=指定路径)
 
 ```python
 from purequant.logger import LOGGER
@@ -1061,6 +1067,8 @@ cur_timestamp_ms = get_cur_timestamp_ms()
 
 ## 示例策略
 
-### 双均线多空策略
++ 双均线多空策略
+
++ 布林强盗突破策略
 
 + 更多示例策略敬请期待！
