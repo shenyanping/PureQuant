@@ -41,7 +41,8 @@ setup(
         "six==1.14.0",
         "twilio==6.44.0",
         "urllib3==1.25.8",
-        "websockets==8.1"
+        "websockets==8.1",
+        "concurrent-log-handler==0.9.17"
     ],
     package_data={
         "purequant/example/double_moving_average_strategy": ["*.json"],

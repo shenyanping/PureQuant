@@ -11,12 +11,16 @@ email: interstella.ranger2020@gmail.com
 import logging
 from logging import handlers
 from purequant.config import config
+from concurrent_log_handler import ConcurrentRotatingFileHandler
+import os
+
 
 class LOGGER:
 
-    def __init__(self, config_file):
+    def __init__(self, config_file, path=None):
+        path = os.path.abspath('./logger/readme.log') if path is None else path
         config.loads(config_file=config_file)
-        self.__logger = logging.getLogger('test')
+        self.__logger = logging.getLogger()
         if config.level == "debug":
             level = logging.DEBUG
         elif config.level == "info":
@@ -32,7 +36,7 @@ class LOGGER:
         self.__logger.setLevel(level=level)
         formatter = logging.Formatter('%(asctime)s  - %(levelname)s: %(message)s')
         # 文件输出按照时间分割
-        time_rotating_file_handler = handlers.TimedRotatingFileHandler(filename='./logger/readme.log', when='MIDNIGHT',
+        time_rotating_file_handler = handlers.TimedRotatingFileHandler(filename=path, when='MIDNIGHT',
                                                                        interval=1, backupCount=10)
         time_rotating_file_handler.setFormatter(formatter)
         time_rotating_file_handler.suffix = "%Y%m%d-%H%M%S.log"
@@ -42,7 +46,7 @@ class LOGGER:
         stream_handler.setFormatter(formatter)
 
         # 文件输出按照大小分割
-        rotatingHandler = logging.handlers.RotatingFileHandler(filename='./logger/readme.log', maxBytes=1 * 1024 * 1024, backupCount=10)
+        rotatingHandler = ConcurrentRotatingFileHandler(path, "a", 1024 * 1024, 10) # a为追加模式，按1M大小分割,保留最近10个文件
         rotatingHandler.setFormatter(formatter)
 
         if config.handler == "time":
