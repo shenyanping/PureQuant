@@ -38,13 +38,10 @@ ProjectName
 
 ## 有任何问题，欢迎联系
 
-+ [官网]: http://purequant.cloud/	"官网"
-
-+ [论坛]: http://purequant.club/upload/
-
-+ [框架使用视频教程]: https://www.bilibili.com/video/BV1TA411e7rT?p=1
-
-+ 微信：caa-essay   进交流群与量化精英们共同交流学习
++ 网站：http://purequant.cloud
++ 论坛：http://purequant.club/upload/
++ 框架使用视频教程：https://www.bilibili.com/video/BV1TA411e7rT?p=1
++ 微信：`caa-essay`   进交流群与量化精英们共同交流学习
 
 ## 赞赏与支持
 
