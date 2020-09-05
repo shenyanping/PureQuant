@@ -609,15 +609,10 @@ class Storage:
 
 
     def read_purequant_server_datas(self, datasheet):  # 获取数据库满足条件的数据
-        """
-        查询PureQuant服务器数据库中满足条件的数据
-        :param datasheet:
-        :return:
-        """
         # 连接数据库
-        user = 'kline'
-        password = 'kline'
-        conn = mysql.connector.connect(host="62.234.75.102", user=user, password=password, database="kline", buffered=True)
+        user = 'purequant'
+        password = '^C_U7TN.,+,KoV#W:Z_!'
+        conn = mysql.connector.connect(host="118.193.32.198", user=user, password=password, database="kline", buffered=True)
         cursor = conn.cursor()
         # 打开游标
         cursor.execute("SELECT * FROM {} WHERE {} {} '{}'".format(datasheet, "open", ">", 0))
