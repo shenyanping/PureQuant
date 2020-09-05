@@ -2,13 +2,13 @@ PureQuant
 
 ------
 
-PureQuant是一套使用Python语言开发的数字货币程序化交易框架，致力于为数字货币行业的投资者提供一个快速、简便地编写自己的交易系统的工具，希望使用者能够通过使用系统，建立并优化自己的交易思想，形成自己的交易策略。感谢您选择PureQuant，希望您能够通过使用该框架找到乐趣，并能创造更多价值。
+PureQuant是一套使用**Python**语言开发的**数字货币程序化交易开源框架**，致力于为数字货币行业的投资者提供一个快速、简便地编写自己的交易系统的工具，希望使用者能够通过使用系统，建立并优化自己的交易思想，形成自己的交易策略。感谢您选择PureQuant，希望您能够通过使用该框架找到乐趣，并能创造更多价值。
 
 ## 框架依赖
 
 + **运行环境**
 
-  建议安装python3.7版本
+  python3.7或以上版本
 
 + **MySQL数据库(可选)**，**MongoDB数据库(可选)**
 
@@ -27,21 +27,24 @@ pip install purequant
 
 + 推荐创建如下结构的文件及文件夹
 
-```python
+```
 ProjectName
     |----- config.json
     |----- strategy1.py
     |----- strategy2.py
     |----- ...
     |----- logger
-  
 ```
 
 ## 有任何问题，欢迎联系
 
-+ 在Github上提交issue
++ [官网]: http://purequant.cloud/
 
-+ 联系微信：caa-essay
++ [论坛]: http://purequant.club/upload/
+
++ [框架使用视频教程]: https://www.bilibili.com/video/BV1TA411e7rT?p=1
+
++ 微信：caa-essay   进交流群与量化精英们共同交流学习
 
 ## 赞赏与支持
 
