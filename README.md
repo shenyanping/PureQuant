@@ -71,7 +71,7 @@ from purequant.trade import BINANCESPOT  # 从trade模块中导入币安现货
 from purequant.config import config  # 导入配置模块
 
 config.loads(config_file) 	# 载入配置文件
-exchange = OKEXSPOT(config.access_key, config.secret_key, instrument_id) # 实例化交易所
+exchange = BINANCESPOT(config.access_key, config.secret_key, instrument_id) # 实例化交易所
 ```
 
 ### 买入开多
@@ -116,7 +116,7 @@ exchange.BUY(平空价格，平空数量，开多价格，开多数量)
 info = exchange.buy(0.01784, 1)
 print(info)
 
->>>【交易提醒】下单结果：{'合约ID': 'TRX-USDT', '方向': '卖出平多', '订单状态': '完全成交', '成交均价': '0.01784', '数量': '1', '成交金额': 17.84} 
+>>>【交易提醒】下单结果：{'合约ID': 'TRX-USDT-SWAP', '方向': '卖出平多', '订单状态': '完全成交', '成交均价': '0.01784', '数量': '1', '成交金额': 17.84} 
 ```
 
 ------
@@ -956,25 +956,20 @@ print(ma90[-1])     # 打印出当前k线上的ma90的值
 
 调用时需先导入LOGGER模块，并在当前目录下创建名为`logger`的文件夹用以存放日志输出文件
 
-默认文件路径是当前路径下的logger文件夹，也可以自行指定路径：logger = LOGGER(config_file， path=指定路径)
+默认文件路径是当前路径下的logs文件夹，如不存在则自动创建。
 
 ```python
-from purequant.logger import LOGGER
-
-logger = LOGGER(config_file)
+from purequant.logger import logger
 ```
 
 在配置文件中，可以直接修改日志输出的等级来控制日志输出级别：
 
 + 将"level"设置成"critical"，则只输出"CRITICAL"级别的日志
-
 + "handler"中可以指明日志的输出方式
-
 + "file"是以文件输出的方式存储日志到当前目录下的"logger"文件夹，按照文件大小1M进行分割，保留最近10个文件
-
 + "time"也是文件输出，但是以按照一天的时间间隔来分割文件，保留最近10个文件
-
 + "stream"或者不填或者填入其他字符，都是输出到控制台，不会存储到文件
++ 输出到控制台时，不同级别的日志具有不同的颜色，建议将命令行窗口设置成黑色，以免蓝色日志看不见。
 
 ```json
 {
