@@ -10,7 +10,7 @@ email: interstella.ranger2020@gmail.com
 
 import json
 
-class Config:
+class __Config:
     """服务配置"""
 
     def __init__(self):
@@ -107,4 +107,4 @@ class Config:
             json.dump(config_content, json_file, indent=4)
         print("配置文件已更新！")
 
-config = Config()
+config = __Config()

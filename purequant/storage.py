@@ -13,7 +13,7 @@ from purequant.indicators import INDICATORS
 import pandas as pd
 from purequant.config import config
 
-class Storage:
+class __Storage:
     """K线等各种数据的存储与读取"""
 
     def __init__(self):
@@ -622,4 +622,4 @@ class Storage:
         conn.close()
         return LogData
 
-storage = Storage()
+storage = __Storage()

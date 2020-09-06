@@ -16,7 +16,7 @@ from twilio.rest import Client
 from purequant.storage import storage
 from purequant.time import get_localtime
 
-def dingtalk(text):
+def __dingtalk(text):
     """
     推送钉钉消息。
     :param data: 要推送的数据内容，字符串格式
@@ -41,7 +41,7 @@ def dingtalk(text):
     storage.text_save("时间：" + str(get_localtime()) + "  发送状态：" + str(dingtalk_result) + "发送内容：" + str(text),
                       './dingtalk.text')  # 将发送时间、结果和具体发送内容保存至当前目录下text文件中
 
-def sendmail(data):
+def __sendmail(data):
     """
     推送邮件信息。
     :param data: 要推送的信息内容，字符串格式
@@ -65,7 +65,7 @@ def sendmail(data):
     server.sendmail(from_addr, [to_addr], msg.as_string())
     server.quit()
 
-def twilio(message):
+def __twilio(message):
     """
     使用twilio推送信息到短信。
     :param message: 要推送的信息，字符串格式。
@@ -82,8 +82,8 @@ def push(message):
     """集成推送工具，配置模块中选择具体的推送渠道"""
     if config.backtest != "enabled":    # 仅实盘模式时推送信息
         if config.sendmail == 'true':
-            sendmail(message)
+            __sendmail(message)
         if config.dingtalk == 'true':
-            dingtalk(message)
+            __dingtalk(message)
         if config.twilio == 'true':
-            twilio(message)
+            __twilio(message)
