@@ -15,7 +15,7 @@ from purequant.trade import OKEXFUTURES
 from purequant.market import MARKET
 from purequant.position import POSITION
 from purequant.indicators import INDICATORS
-from purequant.logger import LOGGER
+from purequant.logger import logger
 from purequant.config import config
 from purequant.time import get_localtime, ts_to_datetime_str, utctime_str_to_ts
 from purequant.storage import storage
@@ -36,7 +36,6 @@ class Strategy:
             self.market = MARKET(self.exchange, self.instrument_id, self.time_frame)    # 行情
             self.position = POSITION(self.exchange, self.instrument_id, self.time_frame)   # 持仓
             self.indicators = INDICATORS(self.exchange, self.instrument_id, self.time_frame)    # 指标
-            self.logger = LOGGER("config.json")
             # 在第一次运行程序时，将初始资金、总盈亏等数据保存至数据库中
             self.database = "回测"  # 数据库，回测时必须为"回测"
             self.datasheet = self.instrument_id.split("-")[0].lower() + "_" + time_frame    # 数据表
@@ -52,8 +51,8 @@ class Strategy:
             self.bollinger_lengths = bollinger_lengths  # 布林通道参数
             self.filter_length = filter_length  # 过滤器参数
             self.out_day = self.bollinger_lengths + 1  # 自适应出场ma的初始值,设为51，因为策略启动时k线更新函数会起作用，其值会减去1
-        except Exception as msg:
-            self.logger.warning(msg)
+        except:
+            logger.warning()
 
     def begin_trade(self, kline=None):
         try:    # 异常处理
@@ -152,8 +151,8 @@ class Strategy:
                 storage.mysql_save_strategy_run_info(self.database, self.datasheet, timestamp,
                                                      "买入平空", price, amount, amount * price * self.contract_value,
                                                      0, "none", 0, profit, self.total_profit, self.total_asset)
-        except Exception as msg:
-            self.logger.error(msg)
+        except:
+            logger.error()
 
 if __name__ == "__main__":
 

@@ -960,6 +960,9 @@ print(ma90[-1])     # 打印出当前k线上的ma90的值
 
 ```python
 from purequant.logger import logger
+from purequant.config import config
+
+config.loads("config.json")
 ```
 
 在配置文件中，可以直接修改日志输出的等级来控制日志输出级别：
@@ -1018,6 +1021,28 @@ logger.info("要输出的错误信息")
 
 ```python
 logger.critical("要输出的致命的错误信息")
+```
+
+
+
+注：如果使用`logger`来记录异常信息，使用如下方法：
+
+```python
+from purequant.logger import logger
+from purequant.config import config
+
+config.loads('config.json')
+
+try:
+    print(a)
+except:
+    logger.error()	# 可以是任何级别，不用传入参数。
+    
+>>>
+[2020-09-07  10:06:33] -> [ERROR] : Traceback (most recent call last):
+  File "C:/Users/Administrator/PycharmProjects/pythonProject/11.py", line 7, in <module>
+    print(a)
+NameError: name 'a' is not defined
 ```
 
 ------

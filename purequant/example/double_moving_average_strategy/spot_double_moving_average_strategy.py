@@ -12,7 +12,7 @@ from purequant.indicators import INDICATORS
 from purequant.trade import OKEXSPOT
 from purequant.position import POSITION
 from purequant.market import MARKET
-from purequant.logger import LOGGER
+from purequant.logger import logger
 from purequant.push import push
 from purequant.storage import storage
 from purequant.time import get_localtime, utctime_str_to_ts, ts_to_datetime_str
@@ -31,7 +31,6 @@ class Strategy:
             self.position = POSITION(self.exchange, self.instrument_id, self.time_frame)  # 初始化potion
             self.market = MARKET(self.exchange, self.instrument_id, self.time_frame)  # 初始化market
             self.indicators = INDICATORS(self.exchange, self.instrument_id, self.time_frame)    # 初始化indicators
-            self.logger = LOGGER('config.json')     # 初始化logger
             # 在第一次运行程序时，将初始资金数据保存至数据库中
             self.database = "回测"    # 回测时必须为"回测"
             self.datasheet = self.instrument_id.split("-")[0].lower() + "_" + time_frame
@@ -48,8 +47,8 @@ class Strategy:
             self.short_stop = short_stop    # 空单止损幅度
             self.hold_price = 0     # 注意：okex的现货没有获取持仓均价的接口，故需实盘时需要手动记录入场价格。此种写法对于不同的交易所是通用的。
                                     # 此种写法，若策略重启，持仓价格会回归0
-        except Exception as msg:
-            self.logger.warning(msg)
+        except:
+            logger.warning()
 
     def begin_trade(self, kline=None):
         try:
@@ -102,7 +101,7 @@ class Strategy:
                                                     profit, self.total_profit, self.total_asset)
                     self.counter += 1   # 计数器加1，控制此根k线上不再下单
         except Exception as e:
-            self.logger.info(e)   # 输出异常日志信息，当前路径下需建立logger文件夹
+            logger.info()
 
 if __name__ == "__main__":
 

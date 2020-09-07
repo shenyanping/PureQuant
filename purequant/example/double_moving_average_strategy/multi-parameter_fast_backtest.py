@@ -17,7 +17,7 @@ from purequant.indicators import INDICATORS
 from purequant.trade import OKEXFUTURES
 from purequant.position import POSITION
 from purequant.market import MARKET
-from purequant.logger import LOGGER
+from purequant.logger import logger
 from purequant.push import push
 from purequant.storage import storage
 from purequant.time import get_localtime, utctime_str_to_ts, ts_to_datetime_str
@@ -34,7 +34,6 @@ class Strategy:
         self.position = POSITION(self.exchange, self.instrument_id, self.time_frame)  # 初始化potion
         self.market = MARKET(self.exchange, self.instrument_id, self.time_frame)  # 初始化market
         self.indicators = INDICATORS(self.exchange, self.instrument_id, self.time_frame)    # 初始化indicators
-        self.logger = LOGGER('config.json')     # 初始化logger
         # 在第一次运行程序时，将初始资金数据保存至数据库中
         self.database = "回测"    # 无论实盘或回测，此处database名称可以任意命名
         self.datasheet = self.instrument_id.split("-")[0].lower() + "_" + time_frame
@@ -170,8 +169,8 @@ class Strategy:
                                                         0, "none", 0, profit, self.total_profit,
                                                         self.total_asset)
                         self.counter += 1
-        except Exception as e:
-            self.logger.debug(e)   # 输出异常日志信息，当前路径下需建立logger文件夹
+        except:
+            logger.info()
 
 if __name__ == "__main__":
 

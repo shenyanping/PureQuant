@@ -14,6 +14,7 @@ from purequant.config import config
 from concurrent_log_handler import ConcurrentRotatingFileHandler
 import os
 import colorlog
+import traceback
 
 log_colors_config = {
     'DEBUG': 'cyan',
@@ -28,8 +29,8 @@ class __LOGGER:
     def __init__(self):
         if not os.path.exists("./logs"):    # 如果logs文件夹不存在就自动创建
             os.makedirs("./logs")
-        self.__path = './logs/readme.log'
-        self.__logger = logging.getLogger(__name__)
+        self.__path = './logs/purequant.log'
+        self.__logger = logging.getLogger("purequant")
 
     def __initialize(self):
         if config.level == "debug":
@@ -72,25 +73,26 @@ class __LOGGER:
         else:
             self.__logger.addHandler(stream_handler)
 
-    def debug(self, msg):
+    def debug(self, msg=None):
         self.__initialize()
-        self.__logger.debug(msg)
+        self.__logger.debug(msg) if msg is not None else self.__logger.debug(traceback.format_exc(limit=1))
 
-    def info(self, msg):
+    def info(self, msg=None):
         self.__initialize()
-        self.__logger.info(msg)
+        self.__logger.info(msg) if msg is not None else self.__logger.info(traceback.format_exc(limit=1))
 
-    def warning(self, msg):
+    def warning(self, msg=None):
         self.__initialize()
-        self.__logger.warning(msg)
+        self.__logger.warning(msg) if msg is not None else self.__logger.warning(traceback.format_exc(limit=1))
 
-    def error(self, msg):
+    def error(self, msg=None):
         self.__initialize()
-        self.__logger.error(msg)
+        self.__logger.error(msg) if msg is not None else self.__logger.error(traceback.format_exc(limit=1))
 
-    def critical(self, msg):
+    def critical(self, msg=None):
         self.__initialize()
-        self.__logger.critical(msg)
+        self.__logger.critical(msg) if msg is not None else self.__logger.critical(traceback.format_exc(limit=1))
+
 
 logger = __LOGGER()
 
