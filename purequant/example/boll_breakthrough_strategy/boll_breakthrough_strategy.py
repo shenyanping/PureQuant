@@ -9,15 +9,13 @@ email: interstella.ranger2020@gmail.com
 鉴于回测模式与实盘模式策略运行机制的不同，故此策略的设置是当根k线开仓后当根k线不平仓
 """
 
-
-import time
 from purequant.trade import OKEXFUTURES
 from purequant.market import MARKET
 from purequant.position import POSITION
 from purequant.indicators import INDICATORS
 from purequant.logger import logger
 from purequant.config import config
-from purequant.time import get_localtime, ts_to_datetime_str, utctime_str_to_ts
+from purequant.time import *
 from purequant.storage import storage
 from purequant.push import push
 
@@ -162,13 +160,13 @@ if __name__ == "__main__":
 
     if config.backtest == "enabled":  # 回测模式
         print("正在回测，可能需要一段时间，请稍后...")
-        start_time = time.time()
+        start_time = get_cur_timestamp()
         records = []
         data = storage.read_purequant_server_datas(instrument_id.split("-")[0].lower() + "_" + time_frame)
         for k in data:
             records.append(k)
             strategy.begin_trade(kline=records)
-        cost_time = time.time() - start_time
+        cost_time = get_cur_timestamp() - start_time
         print("回测用时{}秒，结果已保存至mysql数据库！".format(cost_time))
     else:  # 实盘模式
         while True:  # 循环运行begin_trade函数

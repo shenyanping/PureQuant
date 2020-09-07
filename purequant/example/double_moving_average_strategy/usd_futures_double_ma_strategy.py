@@ -7,7 +7,6 @@ Date:   2020/09/02
 email: interstella.ranger2020@gmail.com
 """
 
-import time
 from purequant.indicators import INDICATORS
 from purequant.trade import OKEXFUTURES
 from purequant.position import POSITION
@@ -15,7 +14,7 @@ from purequant.market import MARKET
 from purequant.logger import logger
 from purequant.push import push
 from purequant.storage import storage
-from purequant.time import get_localtime, utctime_str_to_ts, ts_to_datetime_str
+from purequant.time import *
 from purequant.config import config
 
 class Strategy:
@@ -155,13 +154,13 @@ if __name__ == "__main__":
 
     if config.backtest == "enabled":    # 回测模式
         print("正在回测，可能需要一段时间，请稍后...")
-        start_time = time.time()
+        start_time = get_cur_timestamp()
         records = []
         data = storage.read_purequant_server_datas(instrument_id.split("-")[0].lower() + "_" + time_frame)
         for k in data:
             records.append(k)
             strategy.begin_trade(kline=records)
-        cost_time = time.time() - start_time
+        cost_time = get_cur_timestamp() - start_time
         print("回测用时{}秒，结果已保存至mysql数据库！".format(cost_time))
     else:   # 实盘模式
         while True:     # 循环运行begin_trade函数

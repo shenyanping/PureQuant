@@ -12,7 +12,6 @@ Date:   2020/08/21
 email: interstella.ranger2020@gmail.com
 """
 
-import time
 from purequant.indicators import INDICATORS
 from purequant.trade import OKEXFUTURES
 from purequant.position import POSITION
@@ -20,7 +19,7 @@ from purequant.market import MARKET
 from purequant.logger import logger
 from purequant.push import push
 from purequant.storage import storage
-from purequant.time import get_localtime, utctime_str_to_ts, ts_to_datetime_str
+from purequant.time import *
 from purequant.config import config
 
 class Strategy:
@@ -180,7 +179,7 @@ if __name__ == "__main__":
         time_frame = "1d"
         fast_length_list = range(5, 20, 2)
         slow_length_list = range(10, 30, 2)
-        start_time = time.time()
+        start_time = get_cur_timestamp()
         for i in fast_length_list:
             fast_length = i
             for j in slow_length_list:
@@ -194,7 +193,7 @@ if __name__ == "__main__":
                 for k in data:
                     records.append(k)
                     strategy.begin_trade(kline=records)
-                cost_time = time.time() - start_time
+                cost_time = get_cur_timestamp() - start_time
                 print("回测用时{}秒，结果已保存至mysql数据库！".format(cost_time))
     else:   # 实盘模式
         instrument_id = "LTC-USDT-201225"
