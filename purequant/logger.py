@@ -32,7 +32,28 @@ class __LOGGER:
         self.__path = './logs/purequant.log'
         self.__logger = logging.getLogger("purequant")
 
+        formatter = logging.Formatter(fmt='[%(asctime)s] -> [%(levelname)s] : %(message)s')
+        # 文件输出按照时间分割
+        self.time_rotating_file_handler = handlers.TimedRotatingFileHandler(filename=self.__path, when='MIDNIGHT',
+                                                                       interval=1, backupCount=10)
+        self.time_rotating_file_handler.setFormatter(formatter)
+        self.time_rotating_file_handler.suffix = "%Y%m%d-%H%M%S.log"
+
+        # 控制台输出
+        console_formatter = colorlog.ColoredFormatter(
+            fmt='%(log_color)s[%(asctime)s] -> [%(levelname)s] : %(message)s',
+            datefmt='%Y-%m-%d  %H:%M:%S',
+            log_colors=log_colors_config
+        )
+        self.stream_handler = logging.StreamHandler()
+        self.stream_handler.setFormatter(console_formatter)
+
+        # 文件输出按照大小分割
+        self.rotatingHandler = ConcurrentRotatingFileHandler(self.__path, "a", 1024 * 1024, 10)  # a为追加模式，按1M大小分割,保留最近10个文件
+        self.rotatingHandler.setFormatter(formatter)
+
     def __initialize(self):
+        # 根据配置文件中的设置来设置日志级别
         if config.level == "debug":
             level = logging.DEBUG
         elif config.level == "info":
@@ -46,32 +67,13 @@ class __LOGGER:
         else:
             level = logging.DEBUG
         self.__logger.setLevel(level=level)
-        formatter = logging.Formatter(fmt='[%(asctime)s] -> [%(levelname)s] : %(message)s')
-        # 文件输出按照时间分割
-        time_rotating_file_handler = handlers.TimedRotatingFileHandler(filename=self.__path, when='MIDNIGHT',
-                                                                       interval=1, backupCount=10)
-        time_rotating_file_handler.setFormatter(formatter)
-        time_rotating_file_handler.suffix = "%Y%m%d-%H%M%S.log"
-
-        # 控制台输出
-        console_formatter = colorlog.ColoredFormatter(
-            fmt='%(log_color)s[%(asctime)s] -> [%(levelname)s] : %(message)s',
-            datefmt='%Y-%m-%d  %H:%M:%S',
-            log_colors=log_colors_config
-        )
-        stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(console_formatter)
-
-        # 文件输出按照大小分割
-        rotatingHandler = ConcurrentRotatingFileHandler(self.__path, "a", 1024 * 1024, 10) # a为追加模式，按1M大小分割,保留最近10个文件
-        rotatingHandler.setFormatter(formatter)
-
+        # 根据配置文件中的设置来设置日志输出方式
         if config.handler == "time":
-            self.__logger.addHandler(time_rotating_file_handler)
+            self.__logger.addHandler(self.time_rotating_file_handler)
         elif config.handler == "file":
-            self.__logger.addHandler(rotatingHandler)
+            self.__logger.addHandler(self.rotatingHandler)
         else:
-            self.__logger.addHandler(stream_handler)
+            self.__logger.addHandler(self.stream_handler)
 
     def debug(self, msg=None):
         self.__initialize()

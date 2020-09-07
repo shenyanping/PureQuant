@@ -39,7 +39,7 @@ def __dingtalk(text):
     api_url = config.ding_talk_api
     dingtalk_result = requests.post(api_url, json.dumps(json_text), headers=headers).content    # 发送钉钉消息并返回发送结果
     storage.text_save("时间：" + str(get_localtime()) + "  发送状态：" + str(dingtalk_result) + "发送内容：" + str(text),
-                      './dingtalk.text')  # 将发送时间、结果和具体发送内容保存至当前目录下text文件中
+                      './dingtalk.txt')  # 将发送时间、结果和具体发送内容保存至当前目录下text文件中
 
 def __sendmail(data):
     """

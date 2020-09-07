@@ -303,9 +303,8 @@ class __Storage:
         :param mode:
         :return:
         """
-        file = open(filename, mode)
-        file.write(content + '\n')
-        file.close()
+        with open(filename, mode=mode, encoding="utf-8") as file:
+            file.write(content + '\n')
 
     def text_read(self, filename):
         """
@@ -313,16 +312,13 @@ class __Storage:
         :param filename: 文件路径、文件名称。
         :return:返回一个包含所有文件内容的列表，其中元素均为string格式
         """
-        try:
-            file = open(filename, 'r')
-        except IOError:
-            error = '打开txt文件失败，请检查文件！'
-            return error
-        content = file.readlines()
+        with open(filename, encoding="utf-8") as file:
+            content = file.readlines()
         for i in range(len(content)):
             content[i] = content[i][:len(content[i]) - 1]
             file.close()
         return content
+
 
     def mongodb_save(self, database, collection, data):
         """保存数据至mongodb"""
