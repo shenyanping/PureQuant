@@ -446,6 +446,24 @@ class OKEXFUTURES:
             t += 1
         return result
 
+    def get_depth(self, type=None, size=None):
+        """
+        OKEX交割合约获取深度数据
+        :param type: 如不传参，返回asks和bids；只获取asks传入type="asks"；只获取"bids"传入type="bids"
+        :param size: 返回深度档位数量，最多返回200，默认10档
+        :return:
+        """
+        size = 10 or size
+        response = self.__okex_futures.get_depth(self.__instrument_id, size=size)
+        asks = response["asks"]
+        bids = response["bids"]
+        if type == "asks":
+            return asks
+        elif type == "bids":
+            return bids
+        else:
+            return response
+
 class OKEXSPOT:
     """okex现货操作  https://www.okex.com/docs/zh/#spot-README"""
     def __init__(self, access_key, secret_key, passphrase, instrument_id):
@@ -715,6 +733,23 @@ class OKEXSPOT:
         receipt = self.__okex_spot.get_specific_ticker(instrument_id=self.__instrument_id)
         return receipt
 
+    def get_depth(self, type=None, size=None):
+        """
+        OKEX现货获取深度数据
+        :param type: 如不传参，返回asks和bids；只获取asks传入type="asks"；只获取"bids"传入type="bids"
+        :param size: 返回深度档位数量，最多返回200，默认10档
+        :return:
+        """
+        size = 10 or size
+        response = self.__okex_spot.get_depth(self.__instrument_id, size=size)
+        asks = response['asks']
+        bids = response['bids']
+        if type == "asks":
+            return asks
+        elif type == "bids":
+            return bids
+        else:
+            return response
 
 class OKEXSWAP:
     """okex永续合约操作 https://www.okex.com/docs/zh/#swap-README"""
@@ -1133,6 +1168,24 @@ class OKEXSWAP:
     def get_ticker(self):
         receipt = self.__okex_swap.get_specific_ticker(instrument_id=self.__instrument_id)
         return receipt
+
+    def get_depth(self, type=None, size=None):
+        """
+        OKEX永续合约获取深度数据
+        :param type: 如不传参，返回asks和bids；只获取asks传入type="asks"；只获取"bids"传入type="bids"
+        :param size: 返回深度档位数量，最多返回200，默认10档
+        :return:
+        """
+        size = 10 or size
+        response = self.__okex_swap.get_depth(self.__instrument_id, size=size)
+        asks = response["asks"]
+        bids = response["bids"]
+        if type == "asks":
+            return asks
+        elif type == "bids":
+            return bids
+        else:
+            return response
 
 class HUOBIFUTURES:
     """火币合约 https://huobiapi.github.io/docs/dm/v1/cn/#5ea2e0cde2"""
@@ -1622,13 +1675,6 @@ class HUOBIFUTURES:
             return dict
 
     def get_kline(self, time_frame):
-        if self.__instrument_id[6:8] == "03" or self.__instrument_id[6:8] == "09":
-            symbol = self.__symbol + "_" + 'CQ'
-        elif self.__instrument_id[6:8] == "06" or self.__instrument_id[6:8] == "12":
-            symbol = self.__symbol + "_" + 'NQ'
-        else:
-            symbol = None
-            raise SymbolError
         if time_frame == '1m' or time_frame == '1M':
             period = '1min'
         elif time_frame == '5m' or time_frame == '5M':
@@ -1645,7 +1691,7 @@ class HUOBIFUTURES:
             period = '1day'
         else:
             raise KlineError("k线周期错误，k线周期只能是【1m, 5m, 15m, 30m, 1h, 4h, 1d】!")
-        records = self.__huobi_futures.get_contract_kline(symbol=symbol, period=period)['data']
+        records = self.__huobi_futures.get_contract_kline(symbol=self.__contract_code, period=period)['data']
         length = len(records)
         j = 1
         list = []
@@ -1674,25 +1720,32 @@ class HUOBIFUTURES:
         return dict
 
     def get_ticker(self):
-        if self.__instrument_id[6:8] == "03" or self.__instrument_id[6:8]=="09":
-            symbol = self.__symbol + "_" + 'CQ'
-        elif self.__instrument_id[6:8] == "06" or self.__instrument_id[6:8] == "12":
-            symbol = self.__symbol + "_" + 'NQ'
-        else:
-            symbol = None
-            raise SymbolError("交易所: Huobi 合约ID错误，只支持当季与次季合约！")
-        receipt = self.__huobi_futures.get_contract_market_merged(symbol)
+        receipt = self.__huobi_futures.get_contract_market_merged(self.__contract_code)
         last = receipt['tick']['close']
         return {"last": last}
 
     def get_contract_value(self):
         receipt = self.__huobi_futures.get_contract_info()
-        t = 0
-        result = {}
         for item in receipt['data']:
-            result[self.__symbol + "-" + item['contract_code'][-6:]] = item['contract_size']
-            t += 1
-        return result
+            if item["contract_code"] == self.__contract_code:
+                contract_value = item["contract_size"]
+                return contract_value
+
+    def get_depth(self, type=None):
+        """
+        火币交割合约获取深度数据
+        :param type: 如不传参，返回asks和bids；只获取asks传入type="asks"；只获取"bids"传入type="bids"
+        :return:返回20档深度数据
+        """
+        response = self.__huobi_futures.get_contract_depth(self.__contract_code, type="step0")
+        asks = response["tick"]["asks"]
+        bids = response["tick"]["bids"]
+        if type == "asks":
+            return asks
+        elif type == "bids":
+            return bids
+        else:
+            return response
 
 class HUOBISWAP:
     """火币永续合约 https://docs.huobigroup.com/docs/coin_margined_swap/v1/cn/#5ea2e0cde2"""
@@ -2223,12 +2276,26 @@ class HUOBISWAP:
 
     def get_contract_value(self):
         receipt = self.__huobi_swap.get_contract_info()
-        t = 0
-        result = {}
         for item in receipt['data']:
-            result[self.__instrument_id] = item['contract_size']
-            t += 1
-        return result
+            if item["contract_code"] == self.__instrument_id:
+                contract_value = item["contract_size"]
+                return contract_value
+
+    def get_depth(self, type=None):
+        """
+        火币永续合约获取深度数据
+        :param type: 如不传参，返回asks和bids；只获取asks传入type="asks"；只获取"bids"传入type="bids"
+        :return:返回20档深度数据
+        """
+        response = self.__huobi_swap.get_contract_depth(contract_code=self.__instrument_id, type="step0")
+        asks = response["tick"]["asks"]
+        bids = response["tick"]["bids"]
+        if type == "asks":
+            return asks
+        elif type == "bids":
+            return bids
+        else:
+            return response
 
 class HUOBISPOT:
     """火币现货"""
@@ -2246,7 +2313,6 @@ class HUOBISPOT:
         self.__huobi_spot = huobispot.HuobiSVC(self.__access_key, self.__secret_key)
         self.__currency = (instrument_id.split('-')[0]).lower()
         self.__account_id = self.__huobi_spot.get_accounts()['data'][0]['id']
-        self.__symbol = (instrument_id).lower()  # 获取合约面值的函数中所用到的交易对未处理前的格式
 
     def buy(self, price, size, order_type=None):
         """
@@ -2521,6 +2587,24 @@ class HUOBISPOT:
         receipt = self.__huobi_spot.get_ticker(self.__instrument_id)
         last = receipt['tick']['close']
         return {"last": last}
+
+    def get_depth(self, type=None, size=None):
+        """
+        火币现货获取深度数据
+        :param type: 如不传参，返回asks和bids；只获取asks传入type="asks"；只获取"bids"传入type="bids"
+        :param size: 返回深度档位数量，取值范围：5，10，20，默认10档
+        :return:
+        """
+        size = 10 or size
+        response = self.__huobi_spot.get_depth(self.__instrument_id, depth=size, type="step0")
+        asks = response["tick"]["asks"]
+        bids = response["tick"]["bids"]
+        if type == "asks":
+            return asks
+        elif type == "bids":
+            return bids
+        else:
+            return response
 
 
 class BINANCESPOT:
@@ -2806,6 +2890,22 @@ class BINANCESPOT:
         price = None
         result = {'direction': direction, 'amount': amount, 'price': price}
         return result
+
+    def get_depth(self, type=None):
+        """
+        币安现货获取深度数据
+        :param type: 如不传参，返回asks和bids；只获取asks传入type="asks"；只获取"bids"传入type="bids"
+        :return:返回10档深度数据
+        """
+        response = self.__binance_spot.depth(self.__instrument_id)
+        asks = response["asks"]
+        bids = response["bids"]
+        if type == "asks":
+            return asks
+        elif type == "bids":
+            return bids
+        else:
+            return response
 
 
 class BINANCEFUTURES:
@@ -3273,6 +3373,21 @@ class BINANCEFUTURES:
         receipt = self.__binance_futures.get_contract_value(self.__instrument_id)
         return receipt
 
+    def get_depth(self, type=None):
+        """
+        币安币本位合约获取深度数据
+        :param type: 如不传参，返回asks和bids；只获取asks传入type="asks"；只获取"bids"传入type="bids"
+        :return:返回10档深度数据
+        """
+        response = self.__binance_futures.depth(self.__instrument_id)
+        asks = response["asks"]
+        bids = response["bids"]
+        if type == "asks":
+            return asks
+        elif type == "bids":
+            return bids
+        else:
+            return response
 
 class BINANCESWAP:
     """币安USDT合约rest api"""
@@ -3736,3 +3851,18 @@ class BINANCESWAP:
         receipt = self.__binance_swap.get_contract_value(self.__instrument_id)
         return receipt
 
+    def get_depth(self, type=None):
+        """
+        币安USDT合约获取深度数据
+        :param type: 如不传参，返回asks和bids；只获取asks传入type="asks"；只获取"bids"传入type="bids"
+        :return:返回10档深度数据
+        """
+        response = self.__binance_swap.depth(self.__instrument_id)
+        asks = response["asks"]
+        bids = response["bids"]
+        if type == "asks":
+            return asks
+        elif type == "bids":
+            return bids
+        else:
+            return response

@@ -47,13 +47,14 @@ class HuobiSVC:
             raise Exception('Query failed with status: {}'.format(res))
 
     # get market depth
-    def get_depth(self, symbol, type):
+    def get_depth(self, symbol, depth, type):
         """
         :param symbol
         :param type: 可选值：{ percent10, step0, step1, step2, step3, step4, step5 }
         :return:
         """
         params = {'symbol': symbol,
+                  'depth': depth,
                   'type': type}
 
         url = self.market_url + '/market/depth'
